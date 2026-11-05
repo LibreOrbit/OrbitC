@@ -2,7 +2,18 @@
 # File: Makefile
 # ================================================================================
 ROOT_DIR := $(CURDIR)
+
+# Include library configuration
 include $(ROOT_DIR)/config.mk
+
+# Global variable aggregating all module-specific definitions
+MODULES_DEFINES :=
+
+# Inclusions of modular configurations (these populate MODULES_DEFINES)
+ifeq ($(ENABLE_CHECKSUMS),1)
+    include $(ROOT_DIR)/modules/checksums/checksum-config.mk
+endif
+
 
 MODULES :=
 ifeq ($(ENABLE_TYPES),1)
@@ -49,13 +60,13 @@ directories:
 	@mkdir -p $(BUILD_DIR) $(OBJ_DIR) $(BIN_DIR)
 
 $(MODULE_TARGETS): directories
-	@$(MAKE) -C $(patsubst build_%,%,$@) ROOT_DIR=$(ROOT_DIR)
+	@$(MAKE) -C $(patsubst build_%,%,$@) ROOT_DIR=$(ROOT_DIR) MODULES_DEFINES="$(MODULES_DEFINES)"
 
 lib: $(MODULE_TARGETS)
 	@$(AR) $(ARFLAGS) $(BUILD_DIR)/liborbitc.a $(wildcard $(OBJ_DIR)/*.o)
 
 test: lib directories
-	@$(CC) $(CFLAGS_TEST) $(TEST_SRCS) $(UNITY_SRC) -L$(BUILD_DIR) -lorbitc -o $(BIN_DIR)/orbitc_tests
+	@$(CC) $(CFLAGS_TEST) $(MODULES_DEFINES) $(TEST_SRCS) $(UNITY_SRC) -L$(BUILD_DIR) -lorbitc -o $(BIN_DIR)/orbitc_tests
 
 run_tests: test
 	@$(BIN_DIR)/orbitc_tests
