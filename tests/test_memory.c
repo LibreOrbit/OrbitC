@@ -6,13 +6,13 @@
 #include "unity.h"
 #include "orbitc_memory.h"
 
-void test_memory_active_backend(void)
+static void test_memory_active_backend(void)
 {
     ui32_t backend = orbitc_memory_active_backend();
     TEST_ASSERT_TRUE(backend <= 2U);
 }
 
-void test_memory_memset_null_and_zero(void)
+static void test_memory_memset_null_and_zero(void)
 {
     byte_t buf[16];
     status_t st;
@@ -25,7 +25,7 @@ void test_memory_memset_null_and_zero(void)
     TEST_ASSERT_TRUE(orbitc_status_is_ok(st));
 }
 
-void test_memory_memset_aligned_and_unaligned(void)
+static void test_memory_memset_aligned_and_unaligned(void)
 {
     byte_t buf[128];
     usize_t offset;
@@ -41,8 +41,10 @@ void test_memory_memset_aligned_and_unaligned(void)
             {
                 buf[i] = 0x00U;
             }
+
             st = orbitc_memset(&buf[offset], 0xEEU, len);
             TEST_ASSERT_TRUE(orbitc_status_is_ok(st));
+
             for (i = 0U; i < offset; ++i)
             {
                 TEST_ASSERT_EQUAL_HEX8(0x00U, buf[i]);
@@ -59,7 +61,7 @@ void test_memory_memset_aligned_and_unaligned(void)
     }
 }
 
-void test_memory_memcpy_regular_and_errors(void)
+static void test_memory_memcpy_regular_and_errors(void)
 {
     byte_t src[64];
     byte_t dst[64];
@@ -74,6 +76,7 @@ void test_memory_memcpy_regular_and_errors(void)
 
     st = orbitc_memcpy(ORBITC_NULL, src, sizeof(src));
     TEST_ASSERT_TRUE(orbitc_status_is_error(st));
+
     st = orbitc_memcpy(dst, ORBITC_NULL, sizeof(src));
     TEST_ASSERT_TRUE(orbitc_status_is_error(st));
 
@@ -82,6 +85,7 @@ void test_memory_memcpy_regular_and_errors(void)
 
     st = orbitc_memcpy(dst, src, sizeof(src));
     TEST_ASSERT_TRUE(orbitc_status_is_ok(st));
+
     for (i = 0U; i < sizeof(src); ++i)
     {
         TEST_ASSERT_EQUAL_HEX8(src[i], dst[i]);
@@ -92,7 +96,7 @@ void test_memory_memcpy_regular_and_errors(void)
     TEST_ASSERT_EQUAL_UINT32((ui32_t)STATUS_CLS_OVERLAP, (ui32_t)orbitc_status_get_class(st));
 }
 
-void test_memory_memmove_overlap(void)
+static void test_memory_memmove_overlap(void)
 {
     byte_t buf[32];
     usize_t i;
@@ -114,6 +118,7 @@ void test_memory_memmove_overlap(void)
     {
         buf[i] = (byte_t)i;
     }
+
     st = orbitc_memmove(&buf[0], &buf[4], 16U);
     TEST_ASSERT_TRUE(orbitc_status_is_ok(st));
     for (i = 0U; i < 16U; ++i)
@@ -125,7 +130,7 @@ void test_memory_memmove_overlap(void)
     TEST_ASSERT_TRUE(orbitc_status_is_ok(st));
 }
 
-void test_memory_memcmp(void)
+static void test_memory_memcmp(void)
 {
     byte_t a[8] = {1, 2, 3, 4, 5, 6, 7, 8};
     byte_t b[8] = {1, 2, 3, 4, 5, 6, 7, 9};
@@ -135,8 +140,10 @@ void test_memory_memcmp(void)
 
     st = orbitc_memcmp(ORBITC_NULL, b, 8U, &diff);
     TEST_ASSERT_TRUE(orbitc_status_is_error(st));
+
     st = orbitc_memcmp(a, ORBITC_NULL, 8U, &diff);
     TEST_ASSERT_TRUE(orbitc_status_is_error(st));
+
     st = orbitc_memcmp(a, b, 8U, ORBITC_NULL);
     TEST_ASSERT_TRUE(orbitc_status_is_error(st));
 
@@ -157,7 +164,7 @@ void test_memory_memcmp(void)
     TEST_ASSERT_EQUAL_INT32(0, diff);
 }
 
-void test_memory_memchr(void)
+static void test_memory_memchr(void)
 {
     byte_t buf[16] = {10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160};
     const void *found = ORBITC_NULL;
@@ -165,6 +172,7 @@ void test_memory_memchr(void)
 
     st = orbitc_memchr(ORBITC_NULL, 50U, sizeof(buf), &found);
     TEST_ASSERT_TRUE(orbitc_status_is_error(st));
+
     st = orbitc_memchr(buf, 50U, sizeof(buf), ORBITC_NULL);
     TEST_ASSERT_TRUE(orbitc_status_is_error(st));
 
@@ -179,4 +187,15 @@ void test_memory_memchr(void)
 
     st = orbitc_memchr(buf, 10U, 0U, &found);
     TEST_ASSERT_TRUE(orbitc_status_is_error(st));
+}
+
+void run_memory_tests(void)
+{
+    RUN_TEST(test_memory_active_backend);
+    RUN_TEST(test_memory_memset_null_and_zero);
+    RUN_TEST(test_memory_memset_aligned_and_unaligned);
+    RUN_TEST(test_memory_memcpy_regular_and_errors);
+    RUN_TEST(test_memory_memmove_overlap);
+    RUN_TEST(test_memory_memcmp);
+    RUN_TEST(test_memory_memchr);
 }

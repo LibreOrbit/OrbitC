@@ -1,0 +1,25 @@
+#include "unity.h"
+
+/* Fonctions de setup/teardown obligatoires pour Unity */
+void setUp(void) {}
+void tearDown(void) {}
+
+/* Prototypes des runners par module */
+void run_types_tests(void);
+void run_status_tests(void);
+void run_memory_tests(void);
+void run_strings_tests(void);
+void run_checksums_tests(void);
+
+int main(void)
+{
+    UNITY_BEGIN();
+
+    run_types_tests();
+    run_status_tests();
+    run_memory_tests();
+    run_strings_tests();
+    run_checksums_tests();
+
+    return UNITY_END();
+}

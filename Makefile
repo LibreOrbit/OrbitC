@@ -23,7 +23,8 @@ endif
 
 MODULE_TARGETS := $(patsubst %,build_%,$(MODULES))
 
-TEST_SRCS :=
+TEST_SRCS := tests/test_main.c
+
 ifeq ($(ENABLE_TYPES),1)
     TEST_SRCS += tests/test_types.c
 endif
@@ -53,8 +54,8 @@ $(MODULE_TARGETS): directories
 lib: $(MODULE_TARGETS)
 	@$(AR) $(ARFLAGS) $(BUILD_DIR)/liborbitc.a $(wildcard $(OBJ_DIR)/*.o)
 
-test: lib
-	@$(CC) $(CFLAGS_TEST) $(TEST_SRCS) -L$(BUILD_DIR) -lorbitc -o $(BIN_DIR)/orbitc_tests
+test: lib directories
+	@$(CC) $(CFLAGS_TEST) $(TEST_SRCS) $(UNITY_SRC) -L$(BUILD_DIR) -lorbitc -o $(BIN_DIR)/orbitc_tests
 
 run_tests: test
 	@$(BIN_DIR)/orbitc_tests
