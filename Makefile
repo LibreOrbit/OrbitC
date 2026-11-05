@@ -13,6 +13,9 @@ MODULES_DEFINES :=
 ifeq ($(ENABLE_CHECKSUMS),1)
     include $(ROOT_DIR)/modules/checksums/checksum-config.mk
 endif
+ifeq ($(ENABLE_ALLOCATOR),1)
+    include $(ROOT_DIR)/modules/allocator/allocator-config.mk
+endif
 
 
 MODULES :=
@@ -30,6 +33,9 @@ ifeq ($(ENABLE_STRINGS),1)
 endif
 ifeq ($(ENABLE_CHECKSUMS),1)
     MODULES += modules/checksums
+endif
+ifeq ($(ENABLE_ALLOCATOR),1)
+    MODULES += modules/allocator
 endif
 
 MODULE_TARGETS := $(patsubst %,build_%,$(MODULES))
@@ -50,6 +56,9 @@ ifeq ($(ENABLE_STRINGS),1)
 endif
 ifeq ($(ENABLE_CHECKSUMS),1)
     TEST_SRCS += tests/test_checksums.c
+endif
+ifeq ($(ENABLE_ALLOCATOR),1)
+    TEST_SRCS += tests/test_allocator.c
 endif
 
 .PHONY: all clean directories $(MODULE_TARGETS) lib test run_tests

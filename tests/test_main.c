@@ -10,6 +10,7 @@ void run_status_tests(void);
 void run_memory_tests(void);
 void run_strings_tests(void);
 void run_checksums_tests(void);
+void run_allocator_tests(void);
 
 int main(void)
 {
@@ -20,6 +21,6 @@ int main(void)
     run_memory_tests();
     run_strings_tests();
     run_checksums_tests();
-
+    run_allocator_tests();
     return UNITY_END();
 }

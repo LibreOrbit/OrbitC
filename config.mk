@@ -28,6 +28,7 @@ ENABLE_STATUS ?= 1
 ENABLE_MEMORY ?= 1
 ENABLE_STRINGS ?= 1
 ENABLE_CHECKSUMS ?= 1
+ENABLE_ALLOCATOR ?= 1
 
 BUILD_DIR ?= $(ROOT_DIR)/build
 OBJ_DIR ?= $(BUILD_DIR)/obj
@@ -44,7 +45,8 @@ ORBITC_INCLUDES := \
     -I$(ROOT_DIR)/modules/status/include \
     -I$(ROOT_DIR)/modules/memory/include \
     -I$(ROOT_DIR)/modules/strings/include \
-    -I$(ROOT_DIR)/modules/checksums/include
+    -I$(ROOT_DIR)/modules/checksums/include \
+    -I$(ROOT_DIR)/modules/allocator/include
 
 ORBITC_DEFINES := \
     -DORBITC_ARCH_BITS=$(ORBITC_ARCH_BITS) \
@@ -57,7 +59,8 @@ ORBITC_DEFINES := \
     -DENABLE_STATUS=$(ENABLE_STATUS) \
     -DENABLE_MEMORY=$(ENABLE_MEMORY) \
     -DENABLE_STRINGS=$(ENABLE_STRINGS) \
-    -DENABLE_CHECKSUMS=$(ENABLE_CHECKSUMS)
+    -DENABLE_CHECKSUMS=$(ENABLE_CHECKSUMS) \
+    -DENABLE_ALLOCATOR=$(ENABLE_ALLOCATOR)
 
 CFLAGS_PROD := -std=c99 -ffreestanding -nostdinc -fno-builtin \
     -Wall -Wextra -Werror -O2 $(CPU_FLAGS) \

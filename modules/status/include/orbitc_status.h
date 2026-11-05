@@ -63,7 +63,8 @@ typedef enum
     STATUS_MOD_STATUS    = 0x02U, /**< Status and diagnostic subsystem. */
     STATUS_MOD_MEMORY    = 0x03U, /**< Memory management subsystem. */
     STATUS_MOD_STRINGS   = 0x04U, /**< String processing subsystem. */
-    STATUS_MOD_CHECKSUMS = 0x05U  /**< Checksums and cryptographic hashing subsystem. */
+    STATUS_MOD_CHECKSUMS = 0x05U, /**< Checksums and cryptographic hashing subsystem. */
+    STATUS_MOD_ALLOCATOR = 0x06U  /**< Dynamic memory allocator subsystem. */
 } status_mod_t;
 
 /**
