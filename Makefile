@@ -13,6 +13,9 @@ MODULES_DEFINES :=
 ifeq ($(ENABLE_CHECKSUMS),1)
     include $(ROOT_DIR)/modules/checksums/checksum-config.mk
 endif
+ifeq ($(ENABLE_MEMORY),1)
+    include $(ROOT_DIR)/modules/memory/memory-config.mk
+endif
 ifeq ($(ENABLE_ALLOCATOR),1)
     include $(ROOT_DIR)/modules/allocator/allocator-config.mk
 endif

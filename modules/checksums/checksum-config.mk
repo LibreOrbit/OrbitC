@@ -5,6 +5,10 @@
 #              polynomial tables to minimize ROM/Flash footprint in flight builds.
 # ================================================================================
 
+
+# CRC backend: 0 = Bitwise (minimal ROM), 1 = Table-based (fast)
+ORBITC_CRC_BACKEND ?= 1
+ 
 # --------------------------------------------------------------------------------
 # CRC Family Master Switches (1 = Compiled, 0 = Stripped from binary)
 # --------------------------------------------------------------------------------
@@ -34,6 +38,7 @@ ENABLE_CRC32_CASTAGNOLI     ?= 0
 # Preprocessor Definitions Export
 # --------------------------------------------------------------------------------
 MODULES_DEFINES += \
+    -DORBITC_CRC_BACKEND=$(ORBITC_CRC_BACKEND) \
     -DENABLE_CRC8=$(ENABLE_CRC8) \
     -DENABLE_CRC16=$(ENABLE_CRC16) \
     -DENABLE_CRC32=$(ENABLE_CRC32) \
