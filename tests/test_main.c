@@ -11,6 +11,7 @@ void run_memory_tests(void);
 void run_strings_tests(void);
 void run_checksums_tests(void);
 void run_allocator_tests(void);
+void run_bitops_tests(void);
 
 int main(void)
 {
@@ -22,5 +23,7 @@ int main(void)
     run_strings_tests();
     run_checksums_tests();
     run_allocator_tests();
+    run_bitops_tests();
+    
     return UNITY_END();
 }

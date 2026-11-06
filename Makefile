@@ -19,6 +19,9 @@ endif
 ifeq ($(ENABLE_ALLOCATOR),1)
     include $(ROOT_DIR)/modules/allocator/allocator-config.mk
 endif
+ifeq ($(ENABLE_BITOPS),1)
+    include $(ROOT_DIR)/modules/bitops/bitops-config.mk
+endif
 
 
 MODULES :=
@@ -39,6 +42,9 @@ ifeq ($(ENABLE_CHECKSUMS),1)
 endif
 ifeq ($(ENABLE_ALLOCATOR),1)
     MODULES += modules/allocator
+endif
+ifeq ($(ENABLE_BITOPS),1)
+    MODULES += modules/bitops
 endif
 
 MODULE_TARGETS := $(patsubst %,build_%,$(MODULES))
@@ -62,6 +68,9 @@ ifeq ($(ENABLE_CHECKSUMS),1)
 endif
 ifeq ($(ENABLE_ALLOCATOR),1)
     TEST_SRCS += tests/test_allocator.c
+endif
+ifeq ($(ENABLE_BITOPS),1)
+    TEST_SRCS += tests/test_bitops.c
 endif
 
 .PHONY: all clean directories $(MODULE_TARGETS) lib test run_tests
