@@ -13,6 +13,7 @@ void run_checksums_tests(void);
 void run_allocator_tests(void);
 void run_bitops_tests(void);
 void run_endian_tests(void);
+void run_containers_tests(void);
 int main(void)
 {
     UNITY_BEGIN();
@@ -25,5 +26,6 @@ int main(void)
     run_allocator_tests();
     run_bitops_tests();
     run_endian_tests();
+    run_containers_tests();
     return UNITY_END();
 }

@@ -25,6 +25,9 @@ endif
 ifeq ($(ENABLE_ENDIAN),1)
     include $(ROOT_DIR)/modules/endian/endian-config.mk
 endif
+ifeq ($(ENABLE_CONTAINERS),1)
+    include $(ROOT_DIR)/modules/containers/containers-config.mk
+endif
 
 MODULES :=
 ifeq ($(ENABLE_TYPES),1)
@@ -50,6 +53,9 @@ ifeq ($(ENABLE_BITOPS),1)
 endif
 ifeq ($(ENABLE_ENDIAN),1)
     MODULES += modules/endian
+endif
+ifeq ($(ENABLE_CONTAINERS),1)
+    MODULES += modules/containers
 endif
 
 MODULE_TARGETS := $(patsubst %,build_%,$(MODULES))
@@ -79,6 +85,9 @@ ifeq ($(ENABLE_BITOPS),1)
 endif
 ifeq ($(ENABLE_ENDIAN),1)
     TEST_SRCS += tests/test_endian.c
+endif
+ifeq ($(ENABLE_CONTAINERS),1)
+    TEST_SRCS += tests/test_containers.c
 endif
 
 .PHONY: all clean directories $(MODULE_TARGETS) lib test run_tests
