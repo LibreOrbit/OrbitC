@@ -65,7 +65,8 @@ typedef enum
     STATUS_MOD_STRINGS   = 0x04U, /**< String processing subsystem. */
     STATUS_MOD_CHECKSUMS = 0x05U, /**< Checksums and cryptographic hashing subsystem. */
     STATUS_MOD_ALLOCATOR = 0x06U, /**< Dynamic memory allocator subsystem. */
-    STATUS_MOD_BITOPS    = 0x07U  /**< Bit manipulation and bitfield subsystem. */
+    STATUS_MOD_BITOPS    = 0x07U, /**< Bit manipulation and bitfield subsystem. */
+    STATUS_MOD_ENDIAN    = 0x08U  /**< Endianness conversion and serialization subsystem. */
 } status_mod_t;
 
 /**
