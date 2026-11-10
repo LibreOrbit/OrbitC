@@ -156,6 +156,39 @@ static inline void orbitc_assert_range_u32(
 }
 
 /**
+ * @brief Asserts that an unsigned size (usize_t) is within an inclusive range [min, max].
+ *
+ * If @p val falls outside boundaries and @p st is OK, updates @p st with
+ * @ref STATUS_CLS_OUT_OF_RANGE.
+ *
+ * @param[in]     val     Value to test.
+ * @param[in]     min_val Lower inclusive bound.
+ * @param[in]     max_val Upper inclusive bound.
+ * @param[in,out] st      Status container to update upon violation.
+ * @param[in]     mod     Module reporting the violation (@ref status_mod_t).
+ * @param[in]     code    Subsystem error code identifier.
+ */
+static inline void orbitc_assert_range_usize(
+    usize_t val,
+    usize_t min_val,
+    usize_t max_val,
+    status_t *st,
+    status_mod_t mod,
+    ui8_t code)
+{
+    if ((val < min_val) || (val > max_val))
+    {
+        orbitc_status_latch(
+            st,
+            STATUS_MAKE(
+                STATUS_SEV_ERROR,
+                mod,
+                STATUS_CLS_OUT_OF_RANGE,
+                code));
+    }
+}
+
+/**
  * @brief Asserts that a required size does not exceed the available capacity.
  *
  * If @p required exceeds @p capacity and @p st is OK, updates @p st with
@@ -312,6 +345,40 @@ static inline void orbitc_assert_non_zero_capacity(
         }
     }
 }
+
+
+/**
+ * @brief Asserts that a pointer is aligned to a specified power-of-two alignment boundary.
+ *
+ * If @p ptr is not aligned to @p align and @p st is in an OK state, updates @p st
+ * to report @ref STATUS_CLS_ALIGNMENT with severity @ref STATUS_SEV_ERROR.
+ *
+ * @param[in]     ptr   Pointer address to inspect.
+ * @param[in]     align Alignment boundary in bytes (must be a power of two).
+ * @param[in,out] st    Status container to update upon violation.
+ * @param[in]     mod   Module reporting the violation (@ref status_mod_t).
+ * @param[in]     code  Subsystem error code identifier.
+ */
+static inline void orbitc_assert_alignment(
+    const void *ptr, usize_t align, status_t *st, status_mod_t mod, ui8_t code)
+{
+    if ((st != ORBITC_NULL) && (orbitc_status_is_ok(*st) == ORBITC_TRUE))
+    {
+        if ((((uptr_t)ptr) & ((uptr_t)align - 1U)) != 0U)
+        {
+            orbitc_status_latch(
+                st,
+                STATUS_MAKE(
+                    STATUS_SEV_ERROR,
+                    mod,
+                    STATUS_CLS_ALIGNMENT,
+                    code));
+        }
+    }
+}
+
+
+
 #endif /* ORBITC_ASSERT_H */
 
 /** @} */ /* End of group status */

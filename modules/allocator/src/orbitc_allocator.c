@@ -201,87 +201,121 @@ static bool_t orbitc_validate_block(const orbitc_allocator_t *alloc, const orbit
 status_t orbitc_allocator_init(orbitc_allocator_t *alloc, const allocator_config_t *config)
 {
     status_t st = STATUS_OK;
-    usize_t  usable_total;
-    usize_t  initial_payload;
+    usize_t  usable_total = 0U;
+    usize_t  initial_payload = 0U;
 
     orbitc_assert_not_null(alloc, &st, STATUS_MOD_ALLOCATOR, (ui8_t)ALLOCATOR_CODE_NULL_PTR);
     orbitc_assert_not_null(config, &st, STATUS_MOD_ALLOCATOR, (ui8_t)ALLOCATOR_CODE_NULL_PTR);
 
-    if ((alloc == ORBITC_NULL) || (config == ORBITC_NULL))
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_NULL_PTR, ALLOCATOR_CODE_NULL_PTR);
-    }
-
-    orbitc_assert_not_null(config->mem_start, &st, STATUS_MOD_ALLOCATOR, (ui8_t)ALLOCATOR_CODE_NULL_PTR);
-    if (config->mem_start == ORBITC_NULL)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_NULL_PTR, ALLOCATOR_CODE_NULL_PTR);
+        orbitc_assert_not_null(config->mem_start, &st, STATUS_MOD_ALLOCATOR, (ui8_t)ALLOCATOR_CODE_NULL_PTR);
     }
 
 #if (ALLOCATOR_ENABLE_LOCKS == 1)
-    /* Reject asymmetric lock hooks (both must be NULL or both must be valid function pointers) */
-    if (((config->enter_crit != ORBITC_NULL) && (config->exit_crit == ORBITC_NULL)) ||
-        ((config->enter_crit == ORBITC_NULL) && (config->exit_crit != ORBITC_NULL)))
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, (ui8_t)ALLOCATOR_CODE_BAD_LOCK_CFG);
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_INVALID_PARAM, ALLOCATOR_CODE_BAD_LOCK_CFG);
+        bool_t symmetric_locks = (((config->enter_crit != ORBITC_NULL) && (config->exit_crit == ORBITC_NULL)) ||
+                                  ((config->enter_crit == ORBITC_NULL) && (config->exit_crit != ORBITC_NULL)))
+                                     ? ORBITC_FALSE
+                                     : ORBITC_TRUE;
+        orbitc_assert_param(
+            symmetric_locks,
+            &st,
+            STATUS_SEV_ERROR,
+            STATUS_MOD_ALLOCATOR,
+            (ui8_t)ALLOCATOR_CODE_BAD_LOCK_CFG);
     }
 #endif
 
-    if (alloc->init_magic == ORBITC_ALLOC_INIT_MAGIC)
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return STATUS_MAKE(STATUS_SEV_WARNING, STATUS_MOD_ALLOCATOR, STATUS_CLS_INTERNAL, ALLOCATOR_CODE_ALREADY_INIT);
+        if (alloc->init_magic == ORBITC_ALLOC_INIT_MAGIC)
+        {
+            orbitc_status_latch(
+                &st,
+                STATUS_MAKE(
+                    STATUS_SEV_WARNING,
+                    STATUS_MOD_ALLOCATOR,
+                    STATUS_CLS_INTERNAL,
+                    (ui8_t)ALLOCATOR_CODE_ALREADY_INIT));
+        }
     }
 
-    if (orbitc_is_aligned(config->mem_start) == ORBITC_FALSE)
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, (ui8_t)ALLOCATOR_CODE_BAD_ALIGNMENT);
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_ALIGNMENT, ALLOCATOR_CODE_BAD_ALIGNMENT);
+        orbitc_assert_alignment(
+            config->mem_start,
+            ALLOCATOR_ALIGNMENT,
+            &st,
+            STATUS_MOD_ALLOCATOR,
+            (ui8_t)ALLOCATOR_CODE_BAD_ALIGNMENT);
     }
 
-    /* Truncate total size down to a multiple of ALLOCATOR_ALIGNMENT */
-    usable_total = config->mem_size & ~((usize_t)ALLOCATOR_ALIGNMENT - 1U);
-
-    if (usable_total <= (ORBITC_BLOCK_HDR_SIZE + ALLOCATOR_ALIGNMENT))
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, (ui8_t)ALLOCATOR_CODE_INVALID_SIZE);
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_CAPACITY, ALLOCATOR_CODE_INVALID_SIZE);
+        usable_total = config->mem_size & ~((usize_t)ALLOCATOR_ALIGNMENT - 1U);
+        
+        orbitc_assert_capacity(
+            ORBITC_BLOCK_HDR_SIZE + ALLOCATOR_ALIGNMENT + 1U,
+            usable_total,
+            &st,
+            STATUS_MOD_ALLOCATOR,
+            (ui8_t)ALLOCATOR_CODE_INVALID_SIZE);
+
+        if (usable_total <= (ORBITC_BLOCK_HDR_SIZE + ALLOCATOR_ALIGNMENT))
+        {
+            orbitc_status_latch(
+                &st,
+                STATUS_MAKE(
+                    STATUS_SEV_ERROR,
+                    STATUS_MOD_ALLOCATOR,
+                    STATUS_CLS_CAPACITY,
+                    (ui8_t)ALLOCATOR_CODE_INVALID_SIZE));
+        }
     }
 
-    /* Check pointer wrap-around */
-    if (((uptr_t)config->mem_start + (uptr_t)usable_total) < (uptr_t)config->mem_start)
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_OVERFLOW, ALLOCATOR_CODE_INVALID_SIZE);
+        orbitc_assert_address_range(
+            config->mem_start,
+            usable_total,
+            &st,
+            STATUS_MOD_ALLOCATOR,
+            (ui8_t)ALLOCATOR_CODE_INVALID_SIZE);
     }
 
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
+    {
 #if (ALLOCATOR_ENABLE_LOCKS == 1)
-    alloc->enter_crit     = config->enter_crit;
-    alloc->exit_crit      = config->exit_crit;
-    alloc->lock_arg       = config->lock_arg;
+        alloc->enter_crit     = config->enter_crit;
+        alloc->exit_crit      = config->exit_crit;
+        alloc->lock_arg       = config->lock_arg;
 #endif
 
-    orbitc_alloc_lock(alloc);
+        orbitc_alloc_lock(alloc);
 
-    alloc->heap_start     = (byte_t *)config->mem_start;
-    alloc->heap_end       = alloc->heap_start + usable_total;
-    alloc->total_size     = usable_total;
-    alloc->used_bytes     = 0U;
-    alloc->high_watermark = 0U;
-    alloc->alloc_count    = 0U;
+        alloc->heap_start     = (byte_t *)config->mem_start;
+        alloc->heap_end       = alloc->heap_start + usable_total;
+        alloc->total_size     = usable_total;
+        alloc->used_bytes     = 0U;
+        alloc->high_watermark = 0U;
+        alloc->alloc_count    = 0U;
 
-    initial_payload       = usable_total - ORBITC_BLOCK_HDR_SIZE;
-    alloc->head           = (orbitc_alloc_block_t *)alloc->heap_start;
-    alloc->head->size     = initial_payload;
-    alloc->head->next     = ORBITC_NULL;
-    orbitc_seal_block(alloc->head, ORBITC_TRUE);
+        initial_payload       = usable_total - ORBITC_BLOCK_HDR_SIZE;
+        alloc->head           = (orbitc_alloc_block_t *)alloc->heap_start;
+        alloc->head->size     = initial_payload;
+        alloc->head->next     = ORBITC_NULL;
+        orbitc_seal_block(alloc->head, ORBITC_TRUE);
 
 #if (ALLOCATOR_ENABLE_POISONING == 1)
-    orbitc_mem_fill(alloc->heap_start + ORBITC_BLOCK_HDR_SIZE, ORBITC_POISON_FREE_BYTE, initial_payload);
+        orbitc_mem_fill(alloc->heap_start + ORBITC_BLOCK_HDR_SIZE, ORBITC_POISON_FREE_BYTE, initial_payload);
 #endif
 
-    alloc->init_magic     = ORBITC_ALLOC_INIT_MAGIC;
+        alloc->init_magic     = ORBITC_ALLOC_INIT_MAGIC;
 
-    orbitc_alloc_unlock(alloc);
+        orbitc_alloc_unlock(alloc);
+    }
 
     return st;
 }
@@ -290,34 +324,35 @@ status_t orbitc_allocator_init(orbitc_allocator_t *alloc, const allocator_config
 status_t orbitc_allocator_init_static(orbitc_allocator_t **out_alloc)
 {
     status_t           st = STATUS_OK;
+    status_t init_st;
     allocator_config_t cfg;
 
     orbitc_assert_not_null(out_alloc, &st, STATUS_MOD_ALLOCATOR, (ui8_t)ALLOCATOR_CODE_NULL_PTR);
-    if (out_alloc == ORBITC_NULL)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_NULL_PTR, ALLOCATOR_CODE_NULL_PTR);
-    }
 
-    *out_alloc = ORBITC_NULL;
-
-    if (g_static_allocator_ctx.init_magic != ORBITC_ALLOC_INIT_MAGIC)
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        cfg.mem_start  = (void *)g_static_heap_buffer;
-        cfg.mem_size   = (usize_t)ALLOCATOR_STATIC_HEAP_SIZE;
-#if (ALLOCATOR_ENABLE_LOCKS == 1)
-        cfg.enter_crit = ORBITC_NULL;
-        cfg.exit_crit  = ORBITC_NULL;
-        cfg.lock_arg   = ORBITC_NULL;
-#endif
-        st = orbitc_allocator_init(&g_static_allocator_ctx, &cfg);
-        if (orbitc_status_is_ok(st) == ORBITC_FALSE)
+        *out_alloc = ORBITC_NULL;
+
+        if (g_static_allocator_ctx.init_magic != ORBITC_ALLOC_INIT_MAGIC)
         {
-            return st;
+            cfg.mem_start  = (void *)g_static_heap_buffer;
+            cfg.mem_size   = (usize_t)ALLOCATOR_STATIC_HEAP_SIZE;
+#if (ALLOCATOR_ENABLE_LOCKS == 1)
+            cfg.enter_crit = ORBITC_NULL;
+            cfg.exit_crit  = ORBITC_NULL;
+            cfg.lock_arg   = ORBITC_NULL;
+#endif
+            init_st = orbitc_allocator_init(&g_static_allocator_ctx, &cfg);
+            orbitc_status_latch(&st, init_st);
         }
     }
 
-    *out_alloc = &g_static_allocator_ctx;
-    return STATUS_OK;
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
+    {
+        *out_alloc = &g_static_allocator_ctx;
+    }
+
+    return st;
 }
 #endif
 
@@ -327,31 +362,39 @@ status_t orbitc_allocator_reset(orbitc_allocator_t *alloc)
     usize_t  initial_payload;
 
     orbitc_assert_not_null(alloc, &st, STATUS_MOD_ALLOCATOR, (ui8_t)ALLOCATOR_CODE_NULL_PTR);
-    if (alloc == ORBITC_NULL)
+
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_NULL_PTR, ALLOCATOR_CODE_NULL_PTR);
+        if (alloc->init_magic != ORBITC_ALLOC_INIT_MAGIC)
+        {
+            orbitc_status_latch(
+                &st,
+                STATUS_MAKE(
+                    STATUS_SEV_ERROR,
+                    STATUS_MOD_ALLOCATOR,
+                    STATUS_CLS_INVALID_PARAM,
+                    (ui8_t)ALLOCATOR_CODE_NOT_INIT));
+        }
     }
 
-    if (alloc->init_magic != ORBITC_ALLOC_INIT_MAGIC)
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_INVALID_PARAM, ALLOCATOR_CODE_NOT_INIT);
-    }
+        orbitc_alloc_lock(alloc);
 
-    orbitc_alloc_lock(alloc);
-
-    initial_payload       = alloc->total_size - ORBITC_BLOCK_HDR_SIZE;
-    alloc->head           = (orbitc_alloc_block_t *)alloc->heap_start;
-    alloc->head->size     = initial_payload;
-    alloc->head->next     = ORBITC_NULL;
-    alloc->used_bytes     = 0U;
-    alloc->alloc_count    = 0U;
-    orbitc_seal_block(alloc->head, ORBITC_TRUE);
+        initial_payload       = alloc->total_size - ORBITC_BLOCK_HDR_SIZE;
+        alloc->head           = (orbitc_alloc_block_t *)alloc->heap_start;
+        alloc->head->size     = initial_payload;
+        alloc->head->next     = ORBITC_NULL;
+        alloc->used_bytes     = 0U;
+        alloc->alloc_count    = 0U;
+        orbitc_seal_block(alloc->head, ORBITC_TRUE);
 
 #if (ALLOCATOR_ENABLE_POISONING == 1)
-    orbitc_mem_fill(alloc->heap_start + ORBITC_BLOCK_HDR_SIZE, ORBITC_POISON_FREE_BYTE, initial_payload);
+        orbitc_mem_fill(alloc->heap_start + ORBITC_BLOCK_HDR_SIZE, ORBITC_POISON_FREE_BYTE, initial_payload);
 #endif
 
-    orbitc_alloc_unlock(alloc);
+        orbitc_alloc_unlock(alloc);
+    }
 
     return st;
 }
@@ -359,7 +402,7 @@ status_t orbitc_allocator_reset(orbitc_allocator_t *alloc)
 status_t orbitc_alloc(orbitc_allocator_t *alloc, usize_t size, void **out_ptr)
 {
     status_t              st = STATUS_OK;
-    usize_t               aligned_size;
+    usize_t               aligned_size = 0U;
     orbitc_alloc_block_t *curr;
     orbitc_alloc_block_t *chosen      = ORBITC_NULL;
     orbitc_alloc_block_t *prev        = ORBITC_NULL;
@@ -368,101 +411,138 @@ status_t orbitc_alloc(orbitc_allocator_t *alloc, usize_t size, void **out_ptr)
     orbitc_assert_not_null(alloc, &st, STATUS_MOD_ALLOCATOR, (ui8_t)ALLOCATOR_CODE_NULL_PTR);
     orbitc_assert_not_null(out_ptr, &st, STATUS_MOD_ALLOCATOR, (ui8_t)ALLOCATOR_CODE_NULL_PTR);
 
-    if ((alloc == ORBITC_NULL) || (out_ptr == ORBITC_NULL))
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_NULL_PTR, ALLOCATOR_CODE_NULL_PTR);
-    }
+        *out_ptr = ORBITC_NULL;
 
-    *out_ptr = ORBITC_NULL;
-
-    if (alloc->init_magic != ORBITC_ALLOC_INIT_MAGIC)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_INVALID_PARAM, ALLOCATOR_CODE_NOT_INIT);
-    }
-
-    if ((size == 0U) || (size > (usize_t)ALLOCATOR_MAX_ALLOC_SIZE))
-    {
-        orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, (ui8_t)ALLOCATOR_CODE_INVALID_SIZE);
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_OUT_OF_RANGE, ALLOCATOR_CODE_INVALID_SIZE);
-    }
-
-    aligned_size = orbitc_align_size(size);
-    if ((aligned_size < size) || (aligned_size > (alloc->total_size - ORBITC_BLOCK_HDR_SIZE)))
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_CAPACITY, ALLOCATOR_CODE_OUT_OF_MEMORY);
-    }
-
-    orbitc_alloc_lock(alloc);
-
-    curr = alloc->head;
-    while (curr != ORBITC_NULL)
-    {
-        if (orbitc_validate_block(alloc, curr) == ORBITC_FALSE)
+        if (alloc->init_magic != ORBITC_ALLOC_INIT_MAGIC)
         {
-            orbitc_alloc_unlock(alloc);
-            return STATUS_MAKE(STATUS_SEV_FATAL, STATUS_MOD_ALLOCATOR, STATUS_CLS_INTERNAL, ALLOCATOR_CODE_CORRUPTED);
+            orbitc_status_latch(
+                &st,
+                STATUS_MAKE(
+                    STATUS_SEV_ERROR,
+                    STATUS_MOD_ALLOCATOR,
+                    STATUS_CLS_INVALID_PARAM,
+                    (ui8_t)ALLOCATOR_CODE_NOT_INIT));
         }
+    }
 
-        if ((orbitc_is_block_free(curr) == ORBITC_TRUE) && (curr->size >= aligned_size))
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
+    {
+        orbitc_assert_range_usize(
+        size,
+        1U,
+        (usize_t)ALLOCATOR_MAX_ALLOC_SIZE,
+        &st,
+        STATUS_MOD_ALLOCATOR,
+        (ui8_t)ALLOCATOR_CODE_INVALID_SIZE);
+    }
+
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
+    {
+        aligned_size = orbitc_align_size(size);
+        if ((aligned_size < size) || (aligned_size > (alloc->total_size - ORBITC_BLOCK_HDR_SIZE)))
         {
-#if (ALLOCATOR_POLICY == ORBITC_ALLOC_POLICY_BEST_FIT)
-            if ((chosen == ORBITC_NULL) || (curr->size < chosen->size))
+            orbitc_status_latch(
+                &st,
+                STATUS_MAKE(
+                    STATUS_SEV_ERROR,
+                    STATUS_MOD_ALLOCATOR,
+                    STATUS_CLS_CAPACITY,
+                    (ui8_t)ALLOCATOR_CODE_OUT_OF_MEMORY));
+        }
+    }
+
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
+    {
+        orbitc_alloc_lock(alloc);
+
+        curr = alloc->head;
+        while (curr != ORBITC_NULL)
+        {
+            if (orbitc_validate_block(alloc, curr) == ORBITC_FALSE)
             {
+                orbitc_status_latch(
+                    &st,
+                    STATUS_MAKE(
+                        STATUS_SEV_FATAL,
+                        STATUS_MOD_ALLOCATOR,
+                        STATUS_CLS_INTERNAL,
+                        (ui8_t)ALLOCATOR_CODE_CORRUPTED));
+                break;
+            }
+
+            if ((orbitc_is_block_free(curr) == ORBITC_TRUE) && (curr->size >= aligned_size))
+            {
+#if (ALLOCATOR_POLICY == ORBITC_ALLOC_POLICY_BEST_FIT)
+                if ((chosen == ORBITC_NULL) || (curr->size < chosen->size))
+                {
+                    chosen      = curr;
+                    chosen_prev = prev;
+                    if (curr->size == aligned_size)
+                    {
+                        break;
+                    }
+                }
+#else
                 chosen      = curr;
                 chosen_prev = prev;
-                if (curr->size == aligned_size)
-                {
-                    break; /* Exact fit found */
-                }
+                break;
+#endif
             }
-#else /* FIRST_FIT or BUMP */
-            chosen      = curr;
-            chosen_prev = prev;
-            break;
+
+            prev = curr;
+            curr = curr->next;
+        }
+
+        if (orbitc_status_is_ok(st) == ORBITC_TRUE)
+        {
+            if (chosen == ORBITC_NULL)
+            {
+                orbitc_status_latch(
+                    &st,
+                    STATUS_MAKE(
+                        STATUS_SEV_ERROR,
+                        STATUS_MOD_ALLOCATOR,
+                        STATUS_CLS_CAPACITY,
+                        (ui8_t)ALLOCATOR_CODE_OUT_OF_MEMORY));
+            }
+        }
+
+        if (orbitc_status_is_ok(st) == ORBITC_TRUE)
+        {
+            if (chosen->size >= (aligned_size + ORBITC_BLOCK_HDR_SIZE + ALLOCATOR_ALIGNMENT))
+            {
+                byte_t               *split_addr = (byte_t *)chosen + ORBITC_BLOCK_HDR_SIZE + aligned_size;
+                orbitc_alloc_block_t *remainder  = (orbitc_alloc_block_t *)split_addr;
+
+                remainder->size = chosen->size - aligned_size - ORBITC_BLOCK_HDR_SIZE;
+                remainder->next = chosen->next;
+                orbitc_seal_block(remainder, ORBITC_TRUE);
+
+                chosen->size = aligned_size;
+                chosen->next = remainder;
+            }
+
+            orbitc_seal_block(chosen, ORBITC_FALSE);
+            (void)chosen_prev;
+
+            alloc->used_bytes  += chosen->size;
+            alloc->alloc_count += 1U;
+            if (alloc->used_bytes > alloc->high_watermark)
+            {
+                alloc->high_watermark = alloc->used_bytes;
+            }
+
+            *out_ptr = (void *)((byte_t *)chosen + ORBITC_BLOCK_HDR_SIZE);
+
+#if (ALLOCATOR_ENABLE_POISONING == 1)
+            orbitc_mem_fill((byte_t *)(*out_ptr), ORBITC_POISON_ALLOC_BYTE, chosen->size);
 #endif
         }
 
-        prev = curr;
-        curr = curr->next;
-    }
-
-    if (chosen == ORBITC_NULL)
-    {
         orbitc_alloc_unlock(alloc);
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_CAPACITY, ALLOCATOR_CODE_OUT_OF_MEMORY);
     }
-
-    /* Split the block if the remainder can hold at least a header + 1 alignment unit */
-    if (chosen->size >= (aligned_size + ORBITC_BLOCK_HDR_SIZE + ALLOCATOR_ALIGNMENT))
-    {
-        byte_t               *split_addr = (byte_t *)chosen + ORBITC_BLOCK_HDR_SIZE + aligned_size;
-        orbitc_alloc_block_t *remainder  = (orbitc_alloc_block_t *)split_addr;
-
-        remainder->size = chosen->size - aligned_size - ORBITC_BLOCK_HDR_SIZE;
-        remainder->next = chosen->next;
-        orbitc_seal_block(remainder, ORBITC_TRUE);
-
-        chosen->size = aligned_size;
-        chosen->next = remainder;
-    }
-
-    orbitc_seal_block(chosen, ORBITC_FALSE);
-    (void)chosen_prev;
-
-    alloc->used_bytes  += chosen->size;
-    alloc->alloc_count += 1U;
-    if (alloc->used_bytes > alloc->high_watermark)
-    {
-        alloc->high_watermark = alloc->used_bytes;
-    }
-
-    *out_ptr = (void *)((byte_t *)chosen + ORBITC_BLOCK_HDR_SIZE);
-
-#if (ALLOCATOR_ENABLE_POISONING == 1)
-    orbitc_mem_fill((byte_t *)(*out_ptr), ORBITC_POISON_ALLOC_BYTE, chosen->size);
-#endif
-
-    orbitc_alloc_unlock(alloc);
 
     return st;
 }
@@ -474,117 +554,160 @@ status_t orbitc_free(orbitc_allocator_t *alloc, void *ptr)
     orbitc_assert_not_null(alloc, &st, STATUS_MOD_ALLOCATOR, (ui8_t)ALLOCATOR_CODE_NULL_PTR);
     orbitc_assert_not_null(ptr, &st, STATUS_MOD_ALLOCATOR, (ui8_t)ALLOCATOR_CODE_NULL_PTR);
 
-    if ((alloc == ORBITC_NULL) || (ptr == ORBITC_NULL))
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_NULL_PTR, ALLOCATOR_CODE_NULL_PTR);
-    }
-
-    if (alloc->init_magic != ORBITC_ALLOC_INIT_MAGIC)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_INVALID_PARAM, ALLOCATOR_CODE_NOT_INIT);
+        if (alloc->init_magic != ORBITC_ALLOC_INIT_MAGIC)
+        {
+            orbitc_status_latch(
+                &st,
+                STATUS_MAKE(
+                    STATUS_SEV_ERROR,
+                    STATUS_MOD_ALLOCATOR,
+                    STATUS_CLS_INVALID_PARAM,
+                    (ui8_t)ALLOCATOR_CODE_NOT_INIT));
+        }
     }
 
 #if (ALLOCATOR_ENABLE_FREE == 0) || (ALLOCATOR_POLICY == ORBITC_ALLOC_POLICY_BUMP)
-    (void)ptr;
-    return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_INVALID_PARAM, ALLOCATOR_CODE_FREE_DISABLED);
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
+    {
+        (void)ptr;
+        orbitc_status_latch(
+            &st,
+            STATUS_MAKE(
+                STATUS_SEV_ERROR,
+                STATUS_MOD_ALLOCATOR,
+                STATUS_CLS_INVALID_PARAM,
+                (ui8_t)ALLOCATOR_CODE_FREE_DISABLED));
+    }
 #else
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
         orbitc_alloc_block_t *curr;
         orbitc_alloc_block_t *prev  = ORBITC_NULL;
         orbitc_alloc_block_t *found = ORBITC_NULL;
         const byte_t         *p_raw = (const byte_t *)ptr;
 
-        /* Quick range and alignment rejection before acquiring lock */
         if ((p_raw < (alloc->heap_start + ORBITC_BLOCK_HDR_SIZE)) ||
             (p_raw >= alloc->heap_end) ||
             (orbitc_is_aligned(ptr) == ORBITC_FALSE))
         {
-            return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_INVALID_PARAM, ALLOCATOR_CODE_INVALID_PTR);
+            orbitc_status_latch(
+                &st,
+                STATUS_MAKE(
+                    STATUS_SEV_ERROR,
+                    STATUS_MOD_ALLOCATOR,
+                    STATUS_CLS_INVALID_PARAM,
+                    (ui8_t)ALLOCATOR_CODE_INVALID_PTR));
         }
 
-        orbitc_alloc_lock(alloc);
-
-        curr = alloc->head;
-        while (curr != ORBITC_NULL)
+        if (orbitc_status_is_ok(st) == ORBITC_TRUE)
         {
-            if (orbitc_validate_block(alloc, curr) == ORBITC_FALSE)
+            orbitc_alloc_lock(alloc);
+
+            curr = alloc->head;
+            while (curr != ORBITC_NULL)
             {
-                orbitc_alloc_unlock(alloc);
-                return STATUS_MAKE(STATUS_SEV_FATAL, STATUS_MOD_ALLOCATOR, STATUS_CLS_INTERNAL, ALLOCATOR_CODE_CORRUPTED);
+                if (orbitc_validate_block(alloc, curr) == ORBITC_FALSE)
+                {
+                    orbitc_status_latch(
+                        &st,
+                        STATUS_MAKE(
+                            STATUS_SEV_FATAL,
+                            STATUS_MOD_ALLOCATOR,
+                            STATUS_CLS_INTERNAL,
+                            (ui8_t)ALLOCATOR_CODE_CORRUPTED));
+                    break;
+                }
+
+                if (((const byte_t *)curr + ORBITC_BLOCK_HDR_SIZE) == p_raw)
+                {
+                    found = curr;
+                    break;
+                }
+
+                prev = curr;
+                curr = curr->next;
             }
 
-            if (((const byte_t *)curr + ORBITC_BLOCK_HDR_SIZE) == p_raw)
+            if (orbitc_status_is_ok(st) == ORBITC_TRUE)
             {
-                found = curr;
-                break;
+                if (found == ORBITC_NULL)
+                {
+                    orbitc_status_latch(
+                        &st,
+                        STATUS_MAKE(
+                            STATUS_SEV_ERROR,
+                            STATUS_MOD_ALLOCATOR,
+                            STATUS_CLS_NOT_FOUND,
+                            (ui8_t)ALLOCATOR_CODE_INVALID_PTR));
+                }
+                else if (orbitc_is_block_free(found) == ORBITC_TRUE)
+                {
+                    orbitc_status_latch(
+                        &st,
+                        STATUS_MAKE(
+                            STATUS_SEV_ERROR,
+                            STATUS_MOD_ALLOCATOR,
+                            STATUS_CLS_INVALID_PARAM,
+                            (ui8_t)ALLOCATOR_CODE_DOUBLE_FREE));
+                }
+                else if (found->next != ORBITC_NULL)
+                {
+                    if (orbitc_validate_block(alloc, found->next) == ORBITC_FALSE)
+                    {
+                        orbitc_status_latch(
+                            &st,
+                            STATUS_MAKE(
+                                STATUS_SEV_FATAL,
+                                STATUS_MOD_ALLOCATOR,
+                                STATUS_CLS_INTERNAL,
+                                (ui8_t)ALLOCATOR_CODE_CORRUPTED));
+                    }
+                }
             }
 
-            prev = curr;
-            curr = curr->next;
-        }
+            if (orbitc_status_is_ok(st) == ORBITC_TRUE)
+            {
+                alloc->used_bytes  -= found->size;
+                alloc->alloc_count -= 1U;
 
-        if (found == ORBITC_NULL)
-        {
+#if (ALLOCATOR_ENABLE_POISONING == 1)
+                orbitc_mem_fill((byte_t *)found + ORBITC_BLOCK_HDR_SIZE, ORBITC_POISON_FREE_BYTE, found->size);
+#endif
+
+                orbitc_seal_block(found, ORBITC_TRUE);
+
+                if ((found->next != ORBITC_NULL) && (orbitc_is_block_free(found->next) == ORBITC_TRUE))
+                {
+                    orbitc_alloc_block_t *next_blk = found->next;
+                    found->size += ORBITC_BLOCK_HDR_SIZE + next_blk->size;
+                    found->next  = next_blk->next;
+
+#if (ALLOCATOR_ENABLE_POISONING == 1)
+                    orbitc_mem_fill((byte_t *)next_blk, ORBITC_POISON_FREE_BYTE, ORBITC_BLOCK_HDR_SIZE);
+#endif
+                    orbitc_seal_block(found, ORBITC_TRUE);
+                }
+
+                if ((prev != ORBITC_NULL) && (orbitc_is_block_free(prev) == ORBITC_TRUE))
+                {
+                    prev->size += ORBITC_BLOCK_HDR_SIZE + found->size;
+                    prev->next  = found->next;
+
+#if (ALLOCATOR_ENABLE_POISONING == 1)
+                    orbitc_mem_fill((byte_t *)found, ORBITC_POISON_FREE_BYTE, ORBITC_BLOCK_HDR_SIZE);
+#endif
+                    orbitc_seal_block(prev, ORBITC_TRUE);
+                }
+            }
+
             orbitc_alloc_unlock(alloc);
-            return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_NOT_FOUND, ALLOCATOR_CODE_INVALID_PTR);
         }
-
-        if (orbitc_is_block_free(found) == ORBITC_TRUE)
-        {
-            orbitc_alloc_unlock(alloc);
-            return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_INVALID_PARAM, ALLOCATOR_CODE_DOUBLE_FREE);
-        }
-
-        /* Validate next neighbor before coalescing */
-        if (found->next != ORBITC_NULL)
-        {
-            if (orbitc_validate_block(alloc, found->next) == ORBITC_FALSE)
-            {
-                orbitc_alloc_unlock(alloc);
-                return STATUS_MAKE(STATUS_SEV_FATAL, STATUS_MOD_ALLOCATOR, STATUS_CLS_INTERNAL, ALLOCATOR_CODE_CORRUPTED);
-            }
-        }
-
-        alloc->used_bytes  -= found->size;
-        alloc->alloc_count -= 1U;
-
-#if (ALLOCATOR_ENABLE_POISONING == 1)
-        orbitc_mem_fill((byte_t *)found + ORBITC_BLOCK_HDR_SIZE, ORBITC_POISON_FREE_BYTE, found->size);
-#endif
-
-        /* Mark as free */
-        orbitc_seal_block(found, ORBITC_TRUE);
-
-        /* Coalesce with next block if free */
-        if ((found->next != ORBITC_NULL) && (orbitc_is_block_free(found->next) == ORBITC_TRUE))
-        {
-            orbitc_alloc_block_t *next_blk = found->next;
-            found->size += ORBITC_BLOCK_HDR_SIZE + next_blk->size;
-            found->next  = next_blk->next;
-
-#if (ALLOCATOR_ENABLE_POISONING == 1)
-            orbitc_mem_fill((byte_t *)next_blk, ORBITC_POISON_FREE_BYTE, ORBITC_BLOCK_HDR_SIZE);
-#endif
-            orbitc_seal_block(found, ORBITC_TRUE);
-        }
-
-        /* Coalesce with previous block if free */
-        if ((prev != ORBITC_NULL) && (orbitc_is_block_free(prev) == ORBITC_TRUE))
-        {
-            prev->size += ORBITC_BLOCK_HDR_SIZE + found->size;
-            prev->next  = found->next;
-
-#if (ALLOCATOR_ENABLE_POISONING == 1)
-            orbitc_mem_fill((byte_t *)found, ORBITC_POISON_FREE_BYTE, ORBITC_BLOCK_HDR_SIZE);
-#endif
-            orbitc_seal_block(prev, ORBITC_TRUE);
-        }
-
-        orbitc_alloc_unlock(alloc);
-
-        return st;
     }
 #endif
+
+    return st;
 }
 
 status_t orbitc_allocator_check_integrity(const orbitc_allocator_t *alloc)
@@ -596,55 +719,81 @@ status_t orbitc_allocator_check_integrity(const orbitc_allocator_t *alloc)
     ui32_t                      counted_allocs  = 0U;
 
     orbitc_assert_not_null(alloc, &st, STATUS_MOD_ALLOCATOR, (ui8_t)ALLOCATOR_CODE_NULL_PTR);
-    if (alloc == ORBITC_NULL)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_NULL_PTR, ALLOCATOR_CODE_NULL_PTR);
-    }
 
-    if (alloc->init_magic != ORBITC_ALLOC_INIT_MAGIC)
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_INVALID_PARAM, ALLOCATOR_CODE_NOT_INIT);
-    }
-
-    orbitc_alloc_lock(alloc);
-
-    curr = alloc->head;
-    if ((const byte_t *)curr != alloc->heap_start)
-    {
-        orbitc_alloc_unlock(alloc);
-        return STATUS_MAKE(STATUS_SEV_FATAL, STATUS_MOD_ALLOCATOR, STATUS_CLS_INTERNAL, ALLOCATOR_CODE_CORRUPTED);
-    }
-
-    while (curr != ORBITC_NULL)
-    {
-        if (orbitc_validate_block(alloc, curr) == ORBITC_FALSE)
+        if (alloc->init_magic != ORBITC_ALLOC_INIT_MAGIC)
         {
-            orbitc_alloc_unlock(alloc);
-            return STATUS_MAKE(STATUS_SEV_FATAL, STATUS_MOD_ALLOCATOR, STATUS_CLS_INTERNAL, ALLOCATOR_CODE_CORRUPTED);
+            orbitc_status_latch(
+                &st,
+                STATUS_MAKE(
+                    STATUS_SEV_ERROR,
+                    STATUS_MOD_ALLOCATOR,
+                    STATUS_CLS_INVALID_PARAM,
+                    (ui8_t)ALLOCATOR_CODE_NOT_INIT));
+        }
+    }
+
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
+    {
+        orbitc_alloc_lock(alloc);
+
+        curr = alloc->head;
+        if ((const byte_t *)curr != alloc->heap_start)
+        {
+            orbitc_status_latch(
+                &st,
+                STATUS_MAKE(
+                    STATUS_SEV_FATAL,
+                    STATUS_MOD_ALLOCATOR,
+                    STATUS_CLS_INTERNAL,
+                    (ui8_t)ALLOCATOR_CODE_CORRUPTED));
         }
 
-        accounted_bytes += ORBITC_BLOCK_HDR_SIZE + curr->size;
-        if (orbitc_is_block_free(curr) == ORBITC_FALSE)
+        while ((orbitc_status_is_ok(st) == ORBITC_TRUE) && (curr != ORBITC_NULL))
         {
-            counted_used   += curr->size;
-            counted_allocs += 1U;
+            if (orbitc_validate_block(alloc, curr) == ORBITC_FALSE)
+            {
+                orbitc_status_latch(
+                    &st,
+                    STATUS_MAKE(
+                        STATUS_SEV_FATAL,
+                        STATUS_MOD_ALLOCATOR,
+                        STATUS_CLS_INTERNAL,
+                        (ui8_t)ALLOCATOR_CODE_CORRUPTED));
+                break;
+            }
+
+            accounted_bytes += ORBITC_BLOCK_HDR_SIZE + curr->size;
+            if (orbitc_is_block_free(curr) == ORBITC_FALSE)
+            {
+                counted_used   += curr->size;
+                counted_allocs += 1U;
+            }
+
+            curr = curr->next;
         }
 
-        curr = curr->next;
-    }
+        if (orbitc_status_is_ok(st) == ORBITC_TRUE)
+        {
+            if ((accounted_bytes != alloc->total_size) ||
+                (counted_used != alloc->used_bytes) ||
+                (counted_allocs != alloc->alloc_count))
+            {
+                orbitc_status_latch(
+                    &st,
+                    STATUS_MAKE(
+                        STATUS_SEV_FATAL,
+                        STATUS_MOD_ALLOCATOR,
+                        STATUS_CLS_INTERNAL,
+                        (ui8_t)ALLOCATOR_CODE_CORRUPTED));
+            }
+        }
 
-    /* Verify exact conservation of total memory bytes and metadata counters */
-    if ((accounted_bytes != alloc->total_size) ||
-        (counted_used != alloc->used_bytes) ||
-        (counted_allocs != alloc->alloc_count))
-    {
         orbitc_alloc_unlock(alloc);
-        return STATUS_MAKE(STATUS_SEV_FATAL, STATUS_MOD_ALLOCATOR, STATUS_CLS_INTERNAL, ALLOCATOR_CODE_CORRUPTED);
     }
 
-    orbitc_alloc_unlock(alloc);
-
-    return STATUS_OK;
+    return st;
 }
 
 status_t orbitc_allocator_get_stats(const orbitc_allocator_t *alloc, allocator_stats_t *out_stats)
@@ -655,52 +804,65 @@ status_t orbitc_allocator_get_stats(const orbitc_allocator_t *alloc, allocator_s
     orbitc_assert_not_null(alloc, &st, STATUS_MOD_ALLOCATOR, (ui8_t)ALLOCATOR_CODE_NULL_PTR);
     orbitc_assert_not_null(out_stats, &st, STATUS_MOD_ALLOCATOR, (ui8_t)ALLOCATOR_CODE_NULL_PTR);
 
-    if ((alloc == ORBITC_NULL) || (out_stats == ORBITC_NULL))
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_NULL_PTR, ALLOCATOR_CODE_NULL_PTR);
-    }
-
-    if (alloc->init_magic != ORBITC_ALLOC_INIT_MAGIC)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_ALLOCATOR, STATUS_CLS_INVALID_PARAM, ALLOCATOR_CODE_NOT_INIT);
-    }
-
-    orbitc_alloc_lock(alloc);
-
-    out_stats->total_size       = alloc->total_size;
-    out_stats->free_bytes       = 0U;
-    out_stats->used_bytes       = alloc->used_bytes;
-    out_stats->overhead_bytes   = 0U;
-    out_stats->largest_free_blk = 0U;
-    out_stats->high_watermark   = alloc->high_watermark;
-    out_stats->alloc_count      = alloc->alloc_count;
-    out_stats->free_block_count = 0U;
-
-    curr = alloc->head;
-    while (curr != ORBITC_NULL)
-    {
-        if (orbitc_validate_block(alloc, curr) == ORBITC_FALSE)
+        if (alloc->init_magic != ORBITC_ALLOC_INIT_MAGIC)
         {
-            orbitc_alloc_unlock(alloc);
-            return STATUS_MAKE(STATUS_SEV_FATAL, STATUS_MOD_ALLOCATOR, STATUS_CLS_INTERNAL, ALLOCATOR_CODE_CORRUPTED);
+            orbitc_status_latch(
+                &st,
+                STATUS_MAKE(
+                    STATUS_SEV_ERROR,
+                    STATUS_MOD_ALLOCATOR,
+                    STATUS_CLS_INVALID_PARAM,
+                    (ui8_t)ALLOCATOR_CODE_NOT_INIT));
         }
+    }
 
-        out_stats->overhead_bytes += ORBITC_BLOCK_HDR_SIZE;
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
+    {
+        orbitc_alloc_lock(alloc);
 
-        if (orbitc_is_block_free(curr) == ORBITC_TRUE)
+        out_stats->total_size       = alloc->total_size;
+        out_stats->free_bytes       = 0U;
+        out_stats->used_bytes       = alloc->used_bytes;
+        out_stats->overhead_bytes   = 0U;
+        out_stats->largest_free_blk = 0U;
+        out_stats->high_watermark   = alloc->high_watermark;
+        out_stats->alloc_count      = alloc->alloc_count;
+        out_stats->free_block_count = 0U;
+
+        curr = alloc->head;
+        while (curr != ORBITC_NULL)
         {
-            out_stats->free_bytes       += curr->size;
-            out_stats->free_block_count += 1U;
-            if (curr->size > out_stats->largest_free_blk)
+            if (orbitc_validate_block(alloc, curr) == ORBITC_FALSE)
             {
-                out_stats->largest_free_blk = curr->size;
+                orbitc_status_latch(
+                    &st,
+                    STATUS_MAKE(
+                        STATUS_SEV_FATAL,
+                        STATUS_MOD_ALLOCATOR,
+                        STATUS_CLS_INTERNAL,
+                        (ui8_t)ALLOCATOR_CODE_CORRUPTED));
+                break;
             }
+
+            out_stats->overhead_bytes += ORBITC_BLOCK_HDR_SIZE;
+
+            if (orbitc_is_block_free(curr) == ORBITC_TRUE)
+            {
+                out_stats->free_bytes       += curr->size;
+                out_stats->free_block_count += 1U;
+                if (curr->size > out_stats->largest_free_blk)
+                {
+                    out_stats->largest_free_blk = curr->size;
+                }
+            }
+
+            curr = curr->next;
         }
 
-        curr = curr->next;
+        orbitc_alloc_unlock(alloc);
     }
 
-    orbitc_alloc_unlock(alloc);
-
-    return STATUS_OK;
+    return st;
 }
