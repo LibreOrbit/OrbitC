@@ -377,6 +377,35 @@ static inline void orbitc_assert_alignment(
     }
 }
 
+/**
+ * @brief Asserts that a value does not exceed a specified maximum limit.
+ *
+ * If @p val is greater than @p limit and @p st is OK, updates @p st with
+ * @ref STATUS_CLS_OUT_OF_RANGE.
+ *
+ * @param[in]     val   Value to validate.
+ * @param[in]     limit Maximum allowed value.
+ * @param[in,out] st    Status container to update upon violation.
+ * @param[in]     mod   Module reporting the violation (@ref status_mod_t).
+ * @param[in]     code  Subsystem error code identifier.
+ */
+static inline void orbitc_assert_max_limit_usize(
+    usize_t val, usize_t limit, status_t *st, status_mod_t mod, ui8_t code)
+{
+    if ((st != ORBITC_NULL) && (orbitc_status_is_ok(*st) == ORBITC_TRUE))
+    {
+        if (val > limit)
+        {
+            orbitc_status_latch(
+                st,
+                STATUS_MAKE(
+                    STATUS_SEV_ERROR,
+                    mod,
+                    STATUS_CLS_OUT_OF_RANGE,
+                    code));
+        }
+    }
+}
 
 
 #endif /* ORBITC_ASSERT_H */
