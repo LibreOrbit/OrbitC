@@ -705,23 +705,25 @@ status_t orbitc_memset(void *dst, byte_t val, usize_t len)
 {
     status_t st = STATUS_OK;
 
-    orbitc_assert_not_null(dst, &st, STATUS_MOD_MEMORY, (ui8_t)MEMORY_CODE_NULL_DST);
-    if (dst == ORBITC_NULL)
+    orbitc_assert_not_null(
+        dst,
+        &st,
+        STATUS_MOD_MEMORY,
+        (ui8_t)MEMORY_CODE_NULL_DST);
+
+    orbitc_assert_address_range(
+        dst,
+        len,
+        &st,
+        STATUS_MOD_MEMORY,
+        (ui8_t)MEMORY_CODE_OVERFLOW);
+
+    if ((orbitc_status_is_ok(st) == ORBITC_TRUE) &&
+        (len > 0U))
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_MEMORY, STATUS_CLS_NULL_PTR, MEMORY_CODE_NULL_DST);
+        orbitc_memset_backend((byte_t *)dst, val, len);
     }
 
-    if (len == 0U)
-    {
-        return STATUS_OK;
-    }
-
-    if (((uptr_t)dst + (uptr_t)len) < (uptr_t)dst)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_MEMORY, STATUS_CLS_OVERFLOW, MEMORY_CODE_OVERFLOW);
-    }
-
-    orbitc_memset_backend((byte_t *)dst, val, len);
     return st;
 }
 
@@ -729,129 +731,211 @@ status_t orbitc_memcpy(void *dst, const void *src, usize_t len)
 {
     status_t st = STATUS_OK;
 
-    orbitc_assert_not_null(dst, &st, STATUS_MOD_MEMORY, (ui8_t)MEMORY_CODE_NULL_DST);
-    orbitc_assert_not_null(src, &st, STATUS_MOD_MEMORY, (ui8_t)MEMORY_CODE_NULL_SRC);
-    if (dst == ORBITC_NULL)
+    orbitc_assert_not_null(
+        dst,
+        &st,
+        STATUS_MOD_MEMORY,
+        (ui8_t)MEMORY_CODE_NULL_DST);
+
+    orbitc_assert_not_null(
+        src,
+        &st,
+        STATUS_MOD_MEMORY,
+        (ui8_t)MEMORY_CODE_NULL_SRC);
+
+    orbitc_assert_address_range(
+        dst,
+        len,
+        &st,
+        STATUS_MOD_MEMORY,
+        (ui8_t)MEMORY_CODE_OVERFLOW);
+
+    orbitc_assert_address_range(
+        src,
+        len,
+        &st,
+        STATUS_MOD_MEMORY,
+        (ui8_t)MEMORY_CODE_OVERFLOW);
+
+    orbitc_assert_no_overlap(
+        dst,
+        len,
+        src,
+        len,
+        &st,
+        STATUS_MOD_MEMORY,
+        (ui8_t)MEMORY_CODE_OVERLAP);
+
+    if ((orbitc_status_is_ok(st) == ORBITC_TRUE) &&
+        (len > 0U))
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_MEMORY, STATUS_CLS_NULL_PTR, MEMORY_CODE_NULL_DST);
-    }
-    if (src == ORBITC_NULL)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_MEMORY, STATUS_CLS_NULL_PTR, MEMORY_CODE_NULL_SRC);
+        orbitc_memcpy_backend(
+            (byte_t *)dst,
+            (const byte_t *)src,
+            len);
     }
 
-    if (len == 0U)
-    {
-        return STATUS_OK;
-    }
-
-    if ((((uptr_t)dst + (uptr_t)len) < (uptr_t)dst) ||
-        (((uptr_t)src + (uptr_t)len) < (uptr_t)src))
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_MEMORY, STATUS_CLS_OVERFLOW, MEMORY_CODE_OVERFLOW);
-    }
-
-    orbitc_assert_no_overlap(dst, len, src, len, &st, STATUS_MOD_MEMORY, (ui8_t)MEMORY_CODE_OVERLAP);
-    if (orbitc_ranges_overlap(dst, len, src, len) == ORBITC_TRUE)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_MEMORY, STATUS_CLS_OVERLAP, MEMORY_CODE_OVERLAP);
-    }
-
-    orbitc_memcpy_backend((byte_t *)dst, (const byte_t *)src, len);
     return st;
 }
+
 
 status_t orbitc_memmove(void *dst, const void *src, usize_t len)
 {
     status_t st = STATUS_OK;
 
-    orbitc_assert_not_null(dst, &st, STATUS_MOD_MEMORY, (ui8_t)MEMORY_CODE_NULL_DST);
-    orbitc_assert_not_null(src, &st, STATUS_MOD_MEMORY, (ui8_t)MEMORY_CODE_NULL_SRC);
-    if (dst == ORBITC_NULL)
+    orbitc_assert_not_null(
+        dst,
+        &st,
+        STATUS_MOD_MEMORY,
+        (ui8_t)MEMORY_CODE_NULL_DST);
+
+    orbitc_assert_not_null(
+        src,
+        &st,
+        STATUS_MOD_MEMORY,
+        (ui8_t)MEMORY_CODE_NULL_SRC);
+
+    orbitc_assert_address_range(
+        dst,
+        len,
+        &st,
+        STATUS_MOD_MEMORY,
+        (ui8_t)MEMORY_CODE_OVERFLOW);
+
+    orbitc_assert_address_range(
+        src,
+        len,
+        &st,
+        STATUS_MOD_MEMORY,
+        (ui8_t)MEMORY_CODE_OVERFLOW);
+
+    if ((orbitc_status_is_ok(st) == ORBITC_TRUE) &&
+        (len > 0U))
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_MEMORY, STATUS_CLS_NULL_PTR, MEMORY_CODE_NULL_DST);
-    }
-    if (src == ORBITC_NULL)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_MEMORY, STATUS_CLS_NULL_PTR, MEMORY_CODE_NULL_SRC);
+        orbitc_memmove_backend(
+            (byte_t *)dst,
+            (const byte_t *)src,
+            len);
     }
 
-    if (len == 0U)
-    {
-        return STATUS_OK;
-    }
-
-    if ((((uptr_t)dst + (uptr_t)len) < (uptr_t)dst) ||
-        (((uptr_t)src + (uptr_t)len) < (uptr_t)src))
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_MEMORY, STATUS_CLS_OVERFLOW, MEMORY_CODE_OVERFLOW);
-    }
-
-    orbitc_memmove_backend((byte_t *)dst, (const byte_t *)src, len);
     return st;
 }
 
-status_t orbitc_memcmp(const void *lhs, const void *rhs, usize_t len, si32_t *out_diff)
+
+status_t orbitc_memcmp(
+    const void *lhs,
+    const void *rhs,
+    usize_t len,
+    si32_t *out_diff)
 {
     status_t st = STATUS_OK;
 
-    orbitc_assert_not_null(lhs, &st, STATUS_MOD_MEMORY, (ui8_t)MEMORY_CODE_NULL_DST);
-    orbitc_assert_not_null(rhs, &st, STATUS_MOD_MEMORY, (ui8_t)MEMORY_CODE_NULL_SRC);
-    orbitc_assert_not_null(out_diff, &st, STATUS_MOD_MEMORY, (ui8_t)MEMORY_CODE_NULL_OUT);
+    orbitc_assert_not_null(
+        lhs,
+        &st,
+        STATUS_MOD_MEMORY,
+        (ui8_t)MEMORY_CODE_NULL_DST);
 
-    if (lhs == ORBITC_NULL)
+    orbitc_assert_not_null(
+        rhs,
+        &st,
+        STATUS_MOD_MEMORY,
+        (ui8_t)MEMORY_CODE_NULL_SRC);
+
+    orbitc_assert_not_null(
+        out_diff,
+        &st,
+        STATUS_MOD_MEMORY,
+        (ui8_t)MEMORY_CODE_NULL_OUT);
+
+    orbitc_assert_address_range(
+        lhs,
+        len,
+        &st,
+        STATUS_MOD_MEMORY,
+        (ui8_t)MEMORY_CODE_OVERFLOW);
+
+    orbitc_assert_address_range(
+        rhs,
+        len,
+        &st,
+        STATUS_MOD_MEMORY,
+        (ui8_t)MEMORY_CODE_OVERFLOW);
+
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_MEMORY, STATUS_CLS_NULL_PTR, MEMORY_CODE_NULL_DST);
-    }
-    if (rhs == ORBITC_NULL)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_MEMORY, STATUS_CLS_NULL_PTR, MEMORY_CODE_NULL_SRC);
-    }
-    if (out_diff == ORBITC_NULL)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_MEMORY, STATUS_CLS_NULL_PTR, MEMORY_CODE_NULL_OUT);
+        if (len == 0U)
+        {
+            *out_diff = 0;
+        }
+        else
+        {
+            *out_diff = orbitc_memcmp_backend(
+                (const byte_t *)lhs,
+                (const byte_t *)rhs,
+                len);
+        }
     }
 
-    if (len == 0U)
-    {
-        *out_diff = 0;
-        return STATUS_OK;
-    }
-
-    *out_diff = orbitc_memcmp_backend((const byte_t *)lhs, (const byte_t *)rhs, len);
     return st;
 }
 
-status_t orbitc_memchr(const void *buf, byte_t val, usize_t len, const void **out_found)
+status_t orbitc_memchr(
+    const void *buf,
+    byte_t val,
+    usize_t len,
+    const void **out_found)
 {
     status_t    st = STATUS_OK;
-    const void *found;
+    const void *found = ORBITC_NULL;
 
-    orbitc_assert_not_null(buf, &st, STATUS_MOD_MEMORY, (ui8_t)MEMORY_CODE_NULL_SRC);
-    orbitc_assert_not_null(out_found, &st, STATUS_MOD_MEMORY, (ui8_t)MEMORY_CODE_NULL_OUT);
+    orbitc_assert_not_null(
+        buf,
+        &st,
+        STATUS_MOD_MEMORY,
+        (ui8_t)MEMORY_CODE_NULL_SRC);
 
-    if (buf == ORBITC_NULL)
+    orbitc_assert_not_null(
+        out_found,
+        &st,
+        STATUS_MOD_MEMORY,
+        (ui8_t)MEMORY_CODE_NULL_OUT);
+
+    orbitc_assert_address_range(
+        buf,
+        len,
+        &st,
+        STATUS_MOD_MEMORY,
+        (ui8_t)MEMORY_CODE_OVERFLOW);
+
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_MEMORY, STATUS_CLS_NULL_PTR, MEMORY_CODE_NULL_SRC);
-    }
-    if (out_found == ORBITC_NULL)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_MEMORY, STATUS_CLS_NULL_PTR, MEMORY_CODE_NULL_OUT);
+        *out_found = ORBITC_NULL;
+
+        if (len > 0U)
+        {
+            found = orbitc_memchr_backend(
+                (const byte_t *)buf,
+                val,
+                len);
+        }
+
+        if (found == ORBITC_NULL)
+        {
+            orbitc_status_latch(
+                &st,
+                STATUS_MAKE(
+                    STATUS_SEV_ERROR,
+                    STATUS_MOD_MEMORY,
+                    STATUS_CLS_NOT_FOUND,
+                    MEMORY_CODE_NOT_FOUND));
+        }
+        else
+        {
+            *out_found = found;
+        }
     }
 
-    *out_found = ORBITC_NULL;
-    if (len == 0U)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_MEMORY, STATUS_CLS_NOT_FOUND, MEMORY_CODE_NOT_FOUND);
-    }
-
-    found = orbitc_memchr_backend((const byte_t *)buf, val, len);
-    if (found == ORBITC_NULL)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_MEMORY, STATUS_CLS_NOT_FOUND, MEMORY_CODE_NOT_FOUND);
-    }
-
-    *out_found = found;
     return st;
 }
 

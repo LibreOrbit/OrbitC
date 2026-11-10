@@ -96,30 +96,29 @@ status_t orbitc_crc8_init(crc8_ctx_t *ctx, crc8_type_t type)
     status_t st = STATUS_OK;
 
     orbitc_assert_not_null(ctx, &st, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NULL_CTX);
-    if (ctx == ORBITC_NULL)
+    
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_NULL_PTR, CHECKSUMS_CODE_NULL_CTX);
+
+        ctx->type = type;
+
+        switch (type)
+        {
+    #if (ENABLE_CRC8_STANDARD == 1)
+            case CRC8_TYPE_STANDARD:
+                ctx->state = ORBITC_CRC8_STD_INIT;
+                break;
+    #endif
+    #if (ENABLE_CRC8_AUTOSAR == 1)
+            case CRC8_TYPE_AUTOSAR:
+                ctx->state = ORBITC_CRC8_AUTOSAR_INIT;
+                break;
+    #endif
+            default:
+                orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NOT_COMPILED);
+                break;
+        }
     }
-
-    ctx->type = type;
-
-    switch (type)
-    {
-#if (ENABLE_CRC8_STANDARD == 1)
-        case CRC8_TYPE_STANDARD:
-            ctx->state = ORBITC_CRC8_STD_INIT;
-            break;
-#endif
-#if (ENABLE_CRC8_AUTOSAR == 1)
-        case CRC8_TYPE_AUTOSAR:
-            ctx->state = ORBITC_CRC8_AUTOSAR_INIT;
-            break;
-#endif
-        default:
-            orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NOT_COMPILED);
-            return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_INVALID_PARAM, CHECKSUMS_CODE_NOT_COMPILED);
-    }
-
     return st;
 }
 
@@ -130,47 +129,40 @@ status_t orbitc_crc8_update(crc8_ctx_t *ctx, const void *data, usize_t len)
     orbitc_assert_not_null(ctx, &st, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NULL_CTX);
     orbitc_assert_not_null(data, &st, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NULL_BUF);
 
-    if (ctx == ORBITC_NULL)
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_NULL_PTR, CHECKSUMS_CODE_NULL_CTX);
+        switch (ctx->type)
+        {
+    #if (ENABLE_CRC8_STANDARD == 1)
+            case CRC8_TYPE_STANDARD:
+                if (len > 0U)
+                {
+    #if (ORBITC_CRC_BACKEND == ORBITC_CRC_BACKEND_TABLE)
+                    ctx->state = orbitc_crc8_step_table_normal(ctx->state, (const byte_t *)data, len, orbitc_crc8_standard_nibble_table);
+    #else
+                    ctx->state = orbitc_crc8_step_bitwise_normal(ctx->state, (const byte_t *)data, len, ORBITC_CRC8_STD_POLY);
+    #endif
+                }
+                break;
+    #endif
+    #if (ENABLE_CRC8_AUTOSAR == 1)
+            case CRC8_TYPE_AUTOSAR:
+                if (len > 0U)
+                {
+    #if (ORBITC_CRC_BACKEND == ORBITC_CRC_BACKEND_TABLE)
+                    ctx->state = orbitc_crc8_step_table_normal(ctx->state, (const byte_t *)data, len, orbitc_crc8_autosar_nibble_table);
+    #else
+                    ctx->state = orbitc_crc8_step_bitwise_normal(ctx->state, (const byte_t *)data, len, ORBITC_CRC8_AUTOSAR_POLY);
+    #endif
+                }
+                break;
+    #endif
+            default:
+                (void)len;
+                orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NOT_COMPILED);
+                break;
+        }
     }
-    if (data == ORBITC_NULL)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_NULL_PTR, CHECKSUMS_CODE_NULL_BUF);
-    }
-
-    switch (ctx->type)
-    {
-#if (ENABLE_CRC8_STANDARD == 1)
-        case CRC8_TYPE_STANDARD:
-            if (len > 0U)
-            {
-#if (ORBITC_CRC_BACKEND == ORBITC_CRC_BACKEND_TABLE)
-                ctx->state = orbitc_crc8_step_table_normal(ctx->state, (const byte_t *)data, len, orbitc_crc8_standard_nibble_table);
-#else
-                ctx->state = orbitc_crc8_step_bitwise_normal(ctx->state, (const byte_t *)data, len, ORBITC_CRC8_STD_POLY);
-#endif
-            }
-            break;
-#endif
-#if (ENABLE_CRC8_AUTOSAR == 1)
-        case CRC8_TYPE_AUTOSAR:
-            if (len > 0U)
-            {
-#if (ORBITC_CRC_BACKEND == ORBITC_CRC_BACKEND_TABLE)
-                ctx->state = orbitc_crc8_step_table_normal(ctx->state, (const byte_t *)data, len, orbitc_crc8_autosar_nibble_table);
-#else
-                ctx->state = orbitc_crc8_step_bitwise_normal(ctx->state, (const byte_t *)data, len, ORBITC_CRC8_AUTOSAR_POLY);
-#endif
-            }
-            break;
-#endif
-        default:
-            (void)len;
-            orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NOT_COMPILED);
-            return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_INVALID_PARAM, CHECKSUMS_CODE_NOT_COMPILED);
-    }
-
     return st;
 }
 
@@ -181,32 +173,26 @@ status_t orbitc_crc8_final(const crc8_ctx_t *ctx, ui8_t *out_crc)
     orbitc_assert_not_null(ctx, &st, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NULL_CTX);
     orbitc_assert_not_null(out_crc, &st, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NULL_OUT);
 
-    if (ctx == ORBITC_NULL)
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_NULL_PTR, CHECKSUMS_CODE_NULL_CTX);
-    }
-    if (out_crc == ORBITC_NULL)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_NULL_PTR, CHECKSUMS_CODE_NULL_OUT);
-    }
 
-    switch (ctx->type)
-    {
-#if (ENABLE_CRC8_STANDARD == 1)
-        case CRC8_TYPE_STANDARD:
-            *out_crc = (ui8_t)(ctx->state ^ ORBITC_CRC8_STD_XOROUT);
-            break;
-#endif
-#if (ENABLE_CRC8_AUTOSAR == 1)
-        case CRC8_TYPE_AUTOSAR:
-            *out_crc = (ui8_t)(ctx->state ^ ORBITC_CRC8_AUTOSAR_XOROUT);
-            break;
-#endif
-        default:
-            orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NOT_COMPILED);
-            return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_INVALID_PARAM, CHECKSUMS_CODE_NOT_COMPILED);
+        switch (ctx->type)
+        {
+    #if (ENABLE_CRC8_STANDARD == 1)
+            case CRC8_TYPE_STANDARD:
+                *out_crc = (ui8_t)(ctx->state ^ ORBITC_CRC8_STD_XOROUT);
+                break;
+    #endif
+    #if (ENABLE_CRC8_AUTOSAR == 1)
+            case CRC8_TYPE_AUTOSAR:
+                *out_crc = (ui8_t)(ctx->state ^ ORBITC_CRC8_AUTOSAR_XOROUT);
+                break;
+    #endif
+            default:
+                orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NOT_COMPILED);
+                break;  
+        }
     }
-
     return st;
 }
 
@@ -214,20 +200,24 @@ status_t orbitc_crc8_compute(crc8_type_t type, const void *data, usize_t len, ui
 {
     crc8_ctx_t ctx;
     status_t   st;
+    status_t upd_st;
+    status_t fin_st;
 
     st = orbitc_crc8_init(&ctx, type);
-    if (orbitc_status_is_ok(st) == ORBITC_FALSE)
+
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return st;
+        upd_st = orbitc_crc8_update(&ctx, data, len);
+        orbitc_status_latch(&st, upd_st);
     }
 
-    st = orbitc_crc8_update(&ctx, data, len);
-    if (orbitc_status_is_ok(st) == ORBITC_FALSE)
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return st;
+        fin_st = orbitc_crc8_final(&ctx, out_crc);
+        orbitc_status_latch(&st, fin_st);
     }
 
-    return orbitc_crc8_final(&ctx, out_crc);
+    return st;
 }
 
 #endif /* ENABLE_CRC8 == 1 */
@@ -326,30 +316,28 @@ status_t orbitc_crc16_init(crc16_ctx_t *ctx, crc16_type_t type)
     status_t st = STATUS_OK;
 
     orbitc_assert_not_null(ctx, &st, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NULL_CTX);
-    if (ctx == ORBITC_NULL)
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_NULL_PTR, CHECKSUMS_CODE_NULL_CTX);
+
+        ctx->type = type;
+
+        switch (type)
+        {
+    #if (ENABLE_CRC16_CCITT == 1)
+            case CRC16_TYPE_CCITT:
+                ctx->state = ORBITC_CRC16_CCITT_INIT;
+                break;
+    #endif
+    #if (ENABLE_CRC16_IBM == 1)
+            case CRC16_TYPE_IBM:
+                ctx->state = ORBITC_CRC16_IBM_INIT;
+                break;
+    #endif
+            default:
+                orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NOT_COMPILED);
+                break;
+        }
     }
-
-    ctx->type = type;
-
-    switch (type)
-    {
-#if (ENABLE_CRC16_CCITT == 1)
-        case CRC16_TYPE_CCITT:
-            ctx->state = ORBITC_CRC16_CCITT_INIT;
-            break;
-#endif
-#if (ENABLE_CRC16_IBM == 1)
-        case CRC16_TYPE_IBM:
-            ctx->state = ORBITC_CRC16_IBM_INIT;
-            break;
-#endif
-        default:
-            orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NOT_COMPILED);
-            return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_INVALID_PARAM, CHECKSUMS_CODE_NOT_COMPILED);
-    }
-
     return st;
 }
 
@@ -360,47 +348,40 @@ status_t orbitc_crc16_update(crc16_ctx_t *ctx, const void *data, usize_t len)
     orbitc_assert_not_null(ctx, &st, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NULL_CTX);
     orbitc_assert_not_null(data, &st, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NULL_BUF);
 
-    if (ctx == ORBITC_NULL)
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_NULL_PTR, CHECKSUMS_CODE_NULL_CTX);
+        switch (ctx->type)
+        {
+    #if (ENABLE_CRC16_CCITT == 1)
+            case CRC16_TYPE_CCITT:
+                if (len > 0U)
+                {
+    #if (ORBITC_CRC_BACKEND == ORBITC_CRC_BACKEND_TABLE)
+                    ctx->state = orbitc_crc16_step_table_normal(ctx->state, (const byte_t *)data, len, orbitc_crc16_ccitt_nibble_table);
+    #else
+                    ctx->state = orbitc_crc16_step_bitwise_normal(ctx->state, (const byte_t *)data, len, ORBITC_CRC16_CCITT_POLY);
+    #endif
+                }
+                break;
+    #endif
+    #if (ENABLE_CRC16_IBM == 1)
+            case CRC16_TYPE_IBM:
+                if (len > 0U)
+                {
+    #if (ORBITC_CRC_BACKEND == ORBITC_CRC_BACKEND_TABLE)
+                    ctx->state = orbitc_crc16_step_table_reflected(ctx->state, (const byte_t *)data, len, orbitc_crc16_ibm_nibble_table);
+    #else
+                    ctx->state = orbitc_crc16_step_bitwise_reflected(ctx->state, (const byte_t *)data, len, ORBITC_CRC16_IBM_POLY_REF);
+    #endif
+                }
+                break;
+    #endif
+            default:
+                (void)len;
+                orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NOT_COMPILED);
+                break;
+        }
     }
-    if (data == ORBITC_NULL)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_NULL_PTR, CHECKSUMS_CODE_NULL_BUF);
-    }
-
-    switch (ctx->type)
-    {
-#if (ENABLE_CRC16_CCITT == 1)
-        case CRC16_TYPE_CCITT:
-            if (len > 0U)
-            {
-#if (ORBITC_CRC_BACKEND == ORBITC_CRC_BACKEND_TABLE)
-                ctx->state = orbitc_crc16_step_table_normal(ctx->state, (const byte_t *)data, len, orbitc_crc16_ccitt_nibble_table);
-#else
-                ctx->state = orbitc_crc16_step_bitwise_normal(ctx->state, (const byte_t *)data, len, ORBITC_CRC16_CCITT_POLY);
-#endif
-            }
-            break;
-#endif
-#if (ENABLE_CRC16_IBM == 1)
-        case CRC16_TYPE_IBM:
-            if (len > 0U)
-            {
-#if (ORBITC_CRC_BACKEND == ORBITC_CRC_BACKEND_TABLE)
-                ctx->state = orbitc_crc16_step_table_reflected(ctx->state, (const byte_t *)data, len, orbitc_crc16_ibm_nibble_table);
-#else
-                ctx->state = orbitc_crc16_step_bitwise_reflected(ctx->state, (const byte_t *)data, len, ORBITC_CRC16_IBM_POLY_REF);
-#endif
-            }
-            break;
-#endif
-        default:
-            (void)len;
-            orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NOT_COMPILED);
-            return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_INVALID_PARAM, CHECKSUMS_CODE_NOT_COMPILED);
-    }
-
     return st;
 }
 
@@ -411,30 +392,24 @@ status_t orbitc_crc16_final(const crc16_ctx_t *ctx, ui16_t *out_crc)
     orbitc_assert_not_null(ctx, &st, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NULL_CTX);
     orbitc_assert_not_null(out_crc, &st, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NULL_OUT);
 
-    if (ctx == ORBITC_NULL)
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_NULL_PTR, CHECKSUMS_CODE_NULL_CTX);
-    }
-    if (out_crc == ORBITC_NULL)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_NULL_PTR, CHECKSUMS_CODE_NULL_OUT);
-    }
-
-    switch (ctx->type)
-    {
-#if (ENABLE_CRC16_CCITT == 1)
-        case CRC16_TYPE_CCITT:
-            *out_crc = (ui16_t)(ctx->state ^ ORBITC_CRC16_CCITT_XOROUT);
-            break;
-#endif
-#if (ENABLE_CRC16_IBM == 1)
-        case CRC16_TYPE_IBM:
-            *out_crc = (ui16_t)(ctx->state ^ ORBITC_CRC16_IBM_XOROUT);
-            break;
-#endif
-        default:
-            orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NOT_COMPILED);
-            return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_INVALID_PARAM, CHECKSUMS_CODE_NOT_COMPILED);
+        switch (ctx->type)
+        {
+    #if (ENABLE_CRC16_CCITT == 1)
+            case CRC16_TYPE_CCITT:
+                *out_crc = (ui16_t)(ctx->state ^ ORBITC_CRC16_CCITT_XOROUT);
+                break;
+    #endif
+    #if (ENABLE_CRC16_IBM == 1)
+            case CRC16_TYPE_IBM:
+                *out_crc = (ui16_t)(ctx->state ^ ORBITC_CRC16_IBM_XOROUT);
+                break;
+    #endif
+            default:
+                orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NOT_COMPILED);
+                break;
+        }
     }
 
     return st;
@@ -443,21 +418,23 @@ status_t orbitc_crc16_final(const crc16_ctx_t *ctx, ui16_t *out_crc)
 status_t orbitc_crc16_compute(crc16_type_t type, const void *data, usize_t len, ui16_t *out_crc)
 {
     crc16_ctx_t ctx;
-    status_t    st;
+    status_t    st, upd_st, fin_st;
 
     st = orbitc_crc16_init(&ctx, type);
-    if (orbitc_status_is_ok(st) == ORBITC_FALSE)
+
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return st;
+        upd_st = orbitc_crc16_update(&ctx, data, len);
+        orbitc_status_latch(&st, upd_st);
     }
 
-    st = orbitc_crc16_update(&ctx, data, len);
-    if (orbitc_status_is_ok(st) == ORBITC_FALSE)
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return st;
+        fin_st = orbitc_crc16_final(&ctx, out_crc);
+        orbitc_status_latch(&st, fin_st);
     }
 
-    return orbitc_crc16_final(&ctx, out_crc);
+    return st;
 }
 
 #endif /* ENABLE_CRC16 == 1 */
@@ -516,28 +493,27 @@ status_t orbitc_crc32_init(crc32_ctx_t *ctx, crc32_type_t type)
     status_t st = STATUS_OK;
 
     orbitc_assert_not_null(ctx, &st, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NULL_CTX);
-    if (ctx == ORBITC_NULL)
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_NULL_PTR, CHECKSUMS_CODE_NULL_CTX);
-    }
 
-    ctx->type = type;
+        ctx->type = type;
 
-    switch (type)
-    {
-#if (ENABLE_CRC32_IEEE == 1)
-        case CRC32_TYPE_IEEE:
-            ctx->state = ORBITC_CRC32_IEEE_INIT;
-            break;
-#endif
-#if (ENABLE_CRC32_CASTAGNOLI == 1)
-        case CRC32_TYPE_CASTAGNOLI:
-            ctx->state = ORBITC_CRC32_CAST_INIT;
-            break;
-#endif
-        default:
-            orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NOT_COMPILED);
-            return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_INVALID_PARAM, CHECKSUMS_CODE_NOT_COMPILED);
+        switch (type)
+        {
+    #if (ENABLE_CRC32_IEEE == 1)
+            case CRC32_TYPE_IEEE:
+                ctx->state = ORBITC_CRC32_IEEE_INIT;
+                break;
+    #endif
+    #if (ENABLE_CRC32_CASTAGNOLI == 1)
+            case CRC32_TYPE_CASTAGNOLI:
+                ctx->state = ORBITC_CRC32_CAST_INIT;
+                break;
+    #endif
+            default:
+                orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NOT_COMPILED);
+                break;
+        }
     }
 
     return st;
@@ -550,47 +526,41 @@ status_t orbitc_crc32_update(crc32_ctx_t *ctx, const void *data, usize_t len)
     orbitc_assert_not_null(ctx, &st, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NULL_CTX);
     orbitc_assert_not_null(data, &st, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NULL_BUF);
 
-    if (ctx == ORBITC_NULL)
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_NULL_PTR, CHECKSUMS_CODE_NULL_CTX);
-    }
-    if (data == ORBITC_NULL)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_NULL_PTR, CHECKSUMS_CODE_NULL_BUF);
-    }
 
-    switch (ctx->type)
-    {
-#if (ENABLE_CRC32_IEEE == 1)
-        case CRC32_TYPE_IEEE:
-            if (len > 0U)
-            {
-#if (ORBITC_CRC_BACKEND == ORBITC_CRC_BACKEND_TABLE)
-                ctx->state = orbitc_crc32_step_table_reflected(ctx->state, (const byte_t *)data, len, orbitc_crc32_ieee_nibble_table);
-#else
-                ctx->state = orbitc_crc32_step_bitwise_reflected(ctx->state, (const byte_t *)data, len, ORBITC_CRC32_IEEE_POLY_REF);
-#endif
-            }
-            break;
-#endif
-#if (ENABLE_CRC32_CASTAGNOLI == 1)
-        case CRC32_TYPE_CASTAGNOLI:
-            if (len > 0U)
-            {
-#if (ORBITC_CRC_BACKEND == ORBITC_CRC_BACKEND_TABLE)
-                ctx->state = orbitc_crc32_step_table_reflected(ctx->state, (const byte_t *)data, len, orbitc_crc32_castagnoli_nibble_table);
-#else
-                ctx->state = orbitc_crc32_step_bitwise_reflected(ctx->state, (const byte_t *)data, len, ORBITC_CRC32_CAST_POLY_REF);
-#endif
-            }
-            break;
-#endif
-        default:
-            (void)len;
-            orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NOT_COMPILED);
-            return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_INVALID_PARAM, CHECKSUMS_CODE_NOT_COMPILED);
+        switch (ctx->type)
+        {
+    #if (ENABLE_CRC32_IEEE == 1)
+            case CRC32_TYPE_IEEE:
+                if (len > 0U)
+                {
+    #if (ORBITC_CRC_BACKEND == ORBITC_CRC_BACKEND_TABLE)
+                    ctx->state = orbitc_crc32_step_table_reflected(ctx->state, (const byte_t *)data, len, orbitc_crc32_ieee_nibble_table);
+    #else
+                    ctx->state = orbitc_crc32_step_bitwise_reflected(ctx->state, (const byte_t *)data, len, ORBITC_CRC32_IEEE_POLY_REF);
+    #endif
+                }
+                break;
+    #endif
+    #if (ENABLE_CRC32_CASTAGNOLI == 1)
+            case CRC32_TYPE_CASTAGNOLI:
+                if (len > 0U)
+                {
+    #if (ORBITC_CRC_BACKEND == ORBITC_CRC_BACKEND_TABLE)
+                    ctx->state = orbitc_crc32_step_table_reflected(ctx->state, (const byte_t *)data, len, orbitc_crc32_castagnoli_nibble_table);
+    #else
+                    ctx->state = orbitc_crc32_step_bitwise_reflected(ctx->state, (const byte_t *)data, len, ORBITC_CRC32_CAST_POLY_REF);
+    #endif
+                }
+                break;
+    #endif
+            default:
+                (void)len;
+                orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NOT_COMPILED);
+                break;
+        }
     }
-
     return st;
 }
 
@@ -601,30 +571,24 @@ status_t orbitc_crc32_final(const crc32_ctx_t *ctx, ui32_t *out_crc)
     orbitc_assert_not_null(ctx, &st, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NULL_CTX);
     orbitc_assert_not_null(out_crc, &st, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NULL_OUT);
 
-    if (ctx == ORBITC_NULL)
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_NULL_PTR, CHECKSUMS_CODE_NULL_CTX);
-    }
-    if (out_crc == ORBITC_NULL)
-    {
-        return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_NULL_PTR, CHECKSUMS_CODE_NULL_OUT);
-    }
-
-    switch (ctx->type)
-    {
-#if (ENABLE_CRC32_IEEE == 1)
-        case CRC32_TYPE_IEEE:
-            *out_crc = ctx->state ^ ORBITC_CRC32_IEEE_XOROUT;
-            break;
-#endif
-#if (ENABLE_CRC32_CASTAGNOLI == 1)
-        case CRC32_TYPE_CASTAGNOLI:
-            *out_crc = ctx->state ^ ORBITC_CRC32_CAST_XOROUT;
-            break;
-#endif
-        default:
-            orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NOT_COMPILED);
-            return STATUS_MAKE(STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, STATUS_CLS_INVALID_PARAM, CHECKSUMS_CODE_NOT_COMPILED);
+        switch (ctx->type)
+        {
+    #if (ENABLE_CRC32_IEEE == 1)
+            case CRC32_TYPE_IEEE:
+                *out_crc = ctx->state ^ ORBITC_CRC32_IEEE_XOROUT;
+                break;
+    #endif
+    #if (ENABLE_CRC32_CASTAGNOLI == 1)
+            case CRC32_TYPE_CASTAGNOLI:
+                *out_crc = ctx->state ^ ORBITC_CRC32_CAST_XOROUT;
+                break;
+    #endif
+            default:
+                orbitc_assert_param(ORBITC_FALSE, &st, STATUS_SEV_ERROR, STATUS_MOD_CHECKSUMS, (ui8_t)CHECKSUMS_CODE_NOT_COMPILED);
+                break;
+        }
     }
 
     return st;
@@ -633,21 +597,23 @@ status_t orbitc_crc32_final(const crc32_ctx_t *ctx, ui32_t *out_crc)
 status_t orbitc_crc32_compute(crc32_type_t type, const void *data, usize_t len, ui32_t *out_crc)
 {
     crc32_ctx_t ctx;
-    status_t    st;
+    status_t    st, upd_st, fin_st;
 
     st = orbitc_crc32_init(&ctx, type);
-    if (orbitc_status_is_ok(st) == ORBITC_FALSE)
+
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return st;
+        upd_st = orbitc_crc32_update(&ctx, data, len);
+        orbitc_status_latch(&st, upd_st);
     }
 
-    st = orbitc_crc32_update(&ctx, data, len);
-    if (orbitc_status_is_ok(st) == ORBITC_FALSE)
+    if (orbitc_status_is_ok(st) == ORBITC_TRUE)
     {
-        return st;
+        fin_st = orbitc_crc32_final(&ctx, out_crc);
+        orbitc_status_latch(&st, fin_st);
     }
 
-    return orbitc_crc32_final(&ctx, out_crc);
+    return st;
 }
 
 #endif /* ENABLE_CRC32 == 1 */

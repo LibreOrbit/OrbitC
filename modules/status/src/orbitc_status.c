@@ -12,7 +12,12 @@ status_t orbitc_status_make(status_sev_t sev, status_mod_t mod, status_cls_t cls
 
 bool_t orbitc_status_is_ok(status_t st)
 {
-    return (st == STATUS_OK) ? ORBITC_TRUE : ORBITC_FALSE;
+    status_sev_t severity = STATUS_GET_SEV(st);
+
+    return ((severity == STATUS_SEV_OK) ||
+            (severity == STATUS_SEV_INFO))
+               ? ORBITC_TRUE
+               : ORBITC_FALSE;
 }
 
 bool_t orbitc_status_is_error(status_t st)

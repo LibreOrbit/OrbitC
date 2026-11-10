@@ -2,9 +2,9 @@
  * @file orbitc_assert.h
  * @brief Defensive assertion routines and address-range validation for OrbitC.
  *
- * Provides non-terminating assertion helpers that write structured error codes
- * into an in-flight status variable. When disabled via ORBITC_ENABLE_ASSERT=0,
- * these macros compile away into non-operational no-ops.
+ * Provides non-terminating validation routines that report structured errors
+ * through an in-flight status variable. The first detected non-OK status is
+ * preserved.
  */
 
 /**
@@ -17,18 +17,6 @@
 
 #include "orbitc_status.h"
 
-/* ========================================================================== */
-/* Configuration Flags                                                        */
-/* ========================================================================== */
-
-#ifndef ORBITC_ENABLE_ASSERT
-/**
- * @brief Toggles runtime parameter and boundary assertions.
- *
- * Set to 1 to compile assertion checks, or 0 to strip them in release builds.
- */
-#define ORBITC_ENABLE_ASSERT 1
-#endif
 
 /* ========================================================================== */
 /* Memory Range Validation                                                    */
@@ -73,8 +61,6 @@ static inline bool_t orbitc_ranges_overlap(
     return ((start_a < end_b) && (start_b < end_a)) ? ORBITC_TRUE : ORBITC_FALSE;
 }
 
-#if (ORBITC_ENABLE_ASSERT == 1)
-
 /* ========================================================================== */
 /* Active Assertion Implementations                                           */
 /* ========================================================================== */
@@ -97,7 +83,13 @@ static inline void orbitc_assert_not_null(
     {
         if (ptr == ORBITC_NULL)
         {
-            *st = STATUS_MAKE(STATUS_SEV_ERROR, mod, STATUS_CLS_NULL_PTR, code);
+            orbitc_status_latch(
+            st,
+            STATUS_MAKE(
+                STATUS_SEV_ERROR,
+                mod,
+                STATUS_CLS_NULL_PTR,
+                code));
         }
     }
 }
@@ -121,7 +113,13 @@ static inline void orbitc_assert_param(
     {
         if (cond == ORBITC_FALSE)
         {
-            *st = STATUS_MAKE(sev, mod, STATUS_CLS_INVALID_PARAM, code);
+            orbitc_status_latch(
+            st,
+            STATUS_MAKE(
+                sev,
+                mod,
+                STATUS_CLS_INVALID_PARAM,
+                code));
         }
     }
 }
@@ -146,7 +144,13 @@ static inline void orbitc_assert_range_u32(
     {
         if ((val < min_val) || (val > max_val))
         {
-            *st = STATUS_MAKE(STATUS_SEV_ERROR, mod, STATUS_CLS_OUT_OF_RANGE, code);
+            orbitc_status_latch(
+            st,
+            STATUS_MAKE(
+                STATUS_SEV_ERROR,
+                mod,
+                STATUS_CLS_OUT_OF_RANGE,
+                code));
         }
     }
 }
@@ -170,7 +174,13 @@ static inline void orbitc_assert_capacity(
     {
         if (required > capacity)
         {
-            *st = STATUS_MAKE(STATUS_SEV_ERROR, mod, STATUS_CLS_CAPACITY, code);
+            orbitc_status_latch(
+            st,
+            STATUS_MAKE(
+                STATUS_SEV_ERROR,
+                mod,
+                STATUS_CLS_CAPACITY,
+                code));
         }
     }
 }
@@ -197,7 +207,13 @@ static inline void orbitc_assert_no_overlap(
     {
         if (orbitc_ranges_overlap(ptr_a, len_a, ptr_b, len_b) == ORBITC_TRUE)
         {
-            *st = STATUS_MAKE(STATUS_SEV_ERROR, mod, STATUS_CLS_OVERLAP, code);
+            orbitc_status_latch(
+            st,
+            STATUS_MAKE(
+                STATUS_SEV_ERROR,
+                mod,
+                STATUS_CLS_OVERLAP,
+                code));
         }
     }
 }
@@ -220,88 +236,82 @@ static inline void orbitc_assert_no_overflow_size_add(
     {
         if (lhs > (ORBITC_USIZE_MAX - rhs))
         {
-            *st = STATUS_MAKE(STATUS_SEV_ERROR, mod, STATUS_CLS_OVERFLOW, code);
+            orbitc_status_latch(
+            st,
+            STATUS_MAKE(
+                STATUS_SEV_ERROR,
+                mod,
+                STATUS_CLS_OVERFLOW,
+                code));
         }
     }
 }
 
-#else
-
-/* ========================================================================== */
-/* Disabled Assertions (No-op Stubs)                                         */
-/* ========================================================================== */
-
-/** @brief No-op stub when assertions are disabled. */
-static inline void orbitc_assert_not_null(
-    const void *ptr, status_t *st, status_mod_t mod, ui8_t code)
+/**
+ * @brief Asserts that a pointer range does not wrap around the address space.
+ *
+ * A null pointer is not reported by this helper and must be validated separately
+ * with @ref orbitc_assert_not_null.
+ *
+ * @param[in]     ptr  Start address of the memory range.
+ * @param[in]     len  Length of the memory range in bytes.
+ * @param[in,out] st   Status receiving the first detected error.
+ * @param[in]     mod  Module reporting the error.
+ * @param[in]     code Module-specific error code.
+ */
+static inline void orbitc_assert_address_range(
+    const void *ptr,
+    usize_t len,
+    status_t *st,
+    status_mod_t mod,
+    ui8_t code)
 {
-    (void)ptr;
-    (void)st;
-    (void)mod;
-    (void)code;
+    uptr_t start;
+
+    if (ptr != ORBITC_NULL)
+    {
+        start = (uptr_t)ptr;
+
+        if (((uptr_t)len) > (ORBITC_UPTR_MAX - start))
+        {
+            orbitc_status_latch(
+                st,
+                STATUS_MAKE(
+                    STATUS_SEV_ERROR,
+                    mod,
+                    STATUS_CLS_OVERFLOW,
+                    code));
+        }
+    }
 }
 
-/** @brief No-op stub when assertions are disabled. */
-static inline void orbitc_assert_param(
-    bool_t cond, status_t *st, status_sev_t sev, status_mod_t mod, ui8_t code)
+/**
+ * @brief Asserts that a buffer capacity is strictly non-zero.
+ *
+ * If @p cap is 0 and @p st is OK, updates @p st with @ref STATUS_CLS_CAPACITY.
+ *
+ * @param[in]     cap  Capacity to validate.
+ * @param[in,out] st   Status container to update upon violation.
+ * @param[in]     mod  Module reporting the violation (@ref status_mod_t).
+ * @param[in]     code Subsystem error code identifier.
+ */
+static inline void orbitc_assert_non_zero_capacity(
+    usize_t cap, status_t *st, status_mod_t mod, ui8_t code)
 {
-    (void)cond;
-    (void)st;
-    (void)sev;
-    (void)mod;
-    (void)code;
+    if ((st != ORBITC_NULL) && (orbitc_status_is_ok(*st) == ORBITC_TRUE))
+    {
+        if (cap == 0U)
+        {
+            orbitc_status_latch(
+                st,
+                STATUS_MAKE(
+                    STATUS_SEV_ERROR,
+                    mod,
+                    STATUS_CLS_CAPACITY,
+                    code));
+        }
+    }
 }
-
-/** @brief No-op stub when assertions are disabled. */
-static inline void orbitc_assert_range_u32(
-    ui32_t val, ui32_t min_val, ui32_t max_val, status_t *st, status_mod_t mod, ui8_t code)
-{
-    (void)val;
-    (void)min_val;
-    (void)max_val;
-    (void)st;
-    (void)mod;
-    (void)code;
-}
-
-/** @brief No-op stub when assertions are disabled. */
-static inline void orbitc_assert_capacity(
-    usize_t required, usize_t capacity, status_t *st, status_mod_t mod, ui8_t code)
-{
-    (void)required;
-    (void)capacity;
-    (void)st;
-    (void)mod;
-    (void)code;
-}
-
-/** @brief No-op stub when assertions are disabled. */
-static inline void orbitc_assert_no_overlap(
-    const void *ptr_a, usize_t len_a, const void *ptr_b, usize_t len_b,
-    status_t *st, status_mod_t mod, ui8_t code)
-{
-    (void)ptr_a;
-    (void)len_a;
-    (void)ptr_b;
-    (void)len_b;
-    (void)st;
-    (void)mod;
-    (void)code;
-}
-
-/** @brief No-op stub when assertions are disabled. */
-static inline void orbitc_assert_no_overflow_size_add(
-    usize_t lhs, usize_t rhs, status_t *st, status_mod_t mod, ui8_t code)
-{
-    (void)lhs;
-    (void)rhs;
-    (void)st;
-    (void)mod;
-    (void)code;
-}
-
-#endif /* ORBITC_ENABLE_ASSERT == 1 */
-
 #endif /* ORBITC_ASSERT_H */
 
 /** @} */ /* End of group status */

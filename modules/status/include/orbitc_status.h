@@ -191,13 +191,14 @@ bool_t orbitc_status_is_ok(status_t st);
 bool_t orbitc_status_is_error(status_t st);
 
 /**
- * @brief Latches a candidate status into a target container if not already latched.
+ * @brief Latches a candidate status if the target is still in an OK state.
  *
- * Ensures first-error preservation: if `*target` already holds an error state,
- * it remains unchanged. If `*target` is currently OK, it is updated to @p candidate.
+ * Preserves the first non-OK status. If @p target is null, no operation is
+ * performed. If the target already contains a warning, error, or fatal status,
+ * it remains unchanged.
  *
- * @param[in,out] target    Pointer to the status variable receiving the latch.
- * @param[in]     candidate Candidate status code to apply.
+ * @param[in,out] target    Status variable receiving the candidate.
+ * @param[in]     candidate Candidate status to latch.
  */
 void orbitc_status_latch(status_t *target, status_t candidate);
 
